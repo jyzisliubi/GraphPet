@@ -158,6 +158,54 @@ npm run dev
 | 向量嵌入 | **sentence-transformers** | 2.7+ | BGE-small-zh 本地推理 |
 | LLM 后端 | **FreeLLM Router** | — | 内置免费 API 聚合 |
 
+### 🏗 系统架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Electron 桌面应用                          │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  主进程 (main/index.ts)        预加载 (preload/index.ts)    │  │
+│  │  · 窗口管理 / 系统托盘          · IPC 桥接                  │  │
+│  │  · 文件拖放 / 截屏              · 上下文隔离                │  │
+│  └─────────────────────────┬─────────────────────────────────┘  │
+│                            │ IPC                                 │
+│  ┌─────────────────────────▼─────────────────────────────────┐  │
+│  │            渲染进程 (React + TypeScript)                   │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │  │
+│  │  │ Live2D Canvas│  │  Bubble/Chat │  │  管理面板    │     │  │
+│  │  │  PIXI.js     │  │  对话气泡    │  │  记忆图谱    │     │  │
+│  │  │  21 组动作    │  │  流式 SSE    │  │  文件列表    │     │  │
+│  │  └──────────────┘  └──────┬───────┘  └──────┬───────┘     │  │
+│  └──────────────────────────┼─────────────────┼──────────────┘  │
+└─────────────────────────────┼─────────────────┼────────────────┘
+                              │ HTTP            │ HTTP
+                              ▼                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Python FastAPI 后端 (server.py)                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │  聊天 / 闲聊  │  │  喂食 / 解析 │  │  知识检索 / 溯源     │   │
+│  │  chatService │  │  feedService │  │  memoryService       │   │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘   │
+│         │                 │                     │               │
+│         ▼                 ▼                     ▼               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │ FreeLLM      │  │ Docling      │  │ LightRAG 图谱       │   │
+│  │ Router       │  │ PDF/Word/HTML│  │ + sentence-transformers│  │
+│  │ 多服务商聚合  │  │   → Markdown │  │  BGE-small-zh 向量   │   │
+│  │ 自动故障转移  │  │              │  │  Local/Global/Hybrid │   │
+│  └──────┬───────┘  └──────────────┘  └──────────────────────┘   │
+└─────────┼───────────────────────────────────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────────────────────┐
+   │  外部 LLM 服务商                          │
+   │  硅基流动 / 智谱 / 通义 / DeepSeek /     │
+   │  Kimi / Ollama / 免费 API 聚合            │
+   └──────────────────────────────────────────┘
+```
+
+> 数据流：用户拖文件 → Docling 解析 → LightRAG 增量插入图谱；用户提问 → LightRAG 检索 → LLM 生成 → 表情驱动 → Live2D 播放
+
 ---
 
 ## 📁 项目结构
@@ -186,6 +234,36 @@ GraphPet/
 
 ---
 
+## 🗺 Roadmap
+
+> 用版本号标记功能成熟度，跟着 Nito 一起成长 ✨
+
+### v0.2.x — 当前版本（已完成） 🎉
+
+- ✅ Live2D 桌宠互动（五姐妹皮肤 / 21 组动作 / 摸头戳戳喂食）
+- ✅ 零配置免费 LLM 聚合（8+ 服务商自动故障转移）
+- ✅ 知识图谱喂食（Docling 解析 + LightRAG 增量）
+- ✅ 智能问答（Local / Global / Hybrid 三模式检索）
+- ✅ 管理面板（记忆图谱 / 文件列表 / 成长记录 / 时间线 / 深度对话）
+- ✅ 多格式支持（PDF / Word / TXT / Markdown / 代码 / 网页 / 图片）
+
+### v0.3.x — 计划中 🚧
+
+- 🚧 语音对话 — TTS 语音播报 + STT 语音输入
+- 🚧 宠物走动 — 桌面自由游走、爬窗口边缘、随机巡逻
+- 🚧 自定义模型 — 支持导入第三方 Live2D 模型
+- 🚧 内嵌 Python — 免安装运行时，开箱即用
+- 🚧 Mac / Linux 平台支持 — 跨平台打包
+
+### v0.4.x — 未来规划 🔮
+
+- 🔮 屏幕理解 — 截屏 + 视觉模型，Nito 看得见你的屏幕
+- 🔮 多宠物共存 — 喂养多只桌宠，性格各异互相影响
+- 🔮 插件系统 — 第三方扩展动作 / 皮肤 / 技能
+- 🔮 知识共享 — 桌宠之间交换知识图谱，社区共建
+
+---
+
 ## 🤝 贡献
 
 欢迎贡献代码、提 Issue、发 PR！
@@ -195,6 +273,42 @@ GraphPet/
 3. 提交你的更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启一个 Pull Request
+
+详细的开发指南请参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
+## ❓ FAQ
+
+<details>
+<summary><b>启动时提示"找不到 Python"或"python 不是内部命令"？</b></summary>
+
+GraphPet 后端依赖 Python 3.10+。请到 [python.org](https://www.python.org/downloads/) 下载安装，安装时务必勾选 **"Add Python to PATH"**。安装完成后重启终端，运行 `python --version` 验证。从源码运行还需进入 `python/` 目录执行 `pip install -r requirements.txt`。
+</details>
+
+<details>
+<summary><b>免费 LLM 为什么这么慢，有时候还会失败？</b></summary>
+
+免费模式聚合的是公共免费 API（如 Pollinations），无 QPS 保证、高峰期易拥堵，属于体验用。若需稳定快速回复，建议在设置中切换到带 API Key 的服务商（硅基流动 / 智谱 / DeepSeek 等），多数都有免费额度可用。
+</details>
+
+<details>
+<summary><b>支持哪些文件格式？喂不进去怎么办？</b></summary>
+
+支持 PDF、Word(.docx)、TXT、Markdown、代码、网页(URL)、图片。暂不支持 .doc（旧版二进制 Word）、扫描版 PDF（需 OCR）、加密文件。建议先用其他工具转为受支持格式，或把内容复制为 TXT 后再喂。
+</details>
+
+<details>
+<summary><b>我喂的文件存在哪里？能换电脑吗？</b></summary>
+
+数据默认存储在用户目录下（Windows：`%APPDATA%/graphpet/` 或项目相关目录），包含 LightRAG 知识库与本地缓存。换电脑时把对应数据目录整体打包迁移即可，或重新喂食原始文件重建图谱。
+</details>
+
+<details>
+<summary><b>怎么换 LLM 模型 / 服务商？</b></summary>
+
+右键 Nito → "管理面板" → "设置"，在 LLM 配置区切换服务商并填入 API Key。也支持本地 Ollama，填入本地地址（如 `http://localhost:11434`）即可。切换后立即生效，无需重启。
+</details>
 
 ---
 
@@ -222,3 +336,15 @@ GraphPet/
 Made with ❤️ by Jay Z
 
 </div>
+
+---
+
+## ⭐ Star History
+
+<a href="https://star-history.com/#jyzisliubi/GraphPet&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.com/jyzisliubi/GraphPet.svg?theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.com/jyzisliubi/GraphPet.svg" />
+    <img alt="Star History Chart" src="https://star-history.com/jyzisliubi/GraphPet.svg" width="720" />
+  </picture>
+</a>
