@@ -42,11 +42,27 @@
 
 ## 🖼 预览
 
+### 🎀 五姐妹家族
+
 <div align="center">
 
-### 🎀 桌面宠物 Nito
+| Nito | Ni-J | Nico | Nietzsche | Nipsilon |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="screenshots/nito-pet-only.png" width="120" /><br>**软萌系**<br>粉发贝雷帽 | <img src="screenshots/ni-j.png" width="120" /><br>**哥特系**<br>丝带双马尾 | <img src="screenshots/nico.png" width="120" /><br>**兽耳系**<br>狐耳巫女服 | <img src="screenshots/nietzsche.png" width="120" /><br>**哲学系**<br>VR眼镜科技娘 | <img src="screenshots/nipsilon.png" width="120" /><br>**科技系**<br>插头数据线 |
 
-<img src="screenshots/nito-pet-only.png" alt="Nito桌面宠物" width="300" style="border-radius: 8px;" />
+> 一键切换皮肤，每个角色都有独特的 Live2D 动作和表情 ✨
+
+</div>
+
+### 😆 互动表情包
+
+<div align="center">
+
+<img src="screenshots/nito-angry.png" width="180" style="border-radius: 8px; margin: 8px;" />
+<img src="screenshots/nito-cry.png" width="180" style="border-radius: 8px; margin: 8px;" />
+<img src="screenshots/nito-sleepy.png" width="180" style="border-radius: 8px; margin: 8px;" />
+
+摸头、戳戳、喂食... 21 组动作表情等你解锁！
 
 </div>
 
