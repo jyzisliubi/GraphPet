@@ -373,30 +373,64 @@ def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwarg
         # Parse markdown entity list (Pollinations ignores JSON mode, returns markdown)
         entities = []
         relationships = []
+        entity_names = []
+        # Section detection: "Relationships:" / "关系:" marks switch from entities to relations
+        section = "entities"
         for line in result.split("\n"):
-            line = line.strip()
-            if not line.startswith(("-", "*")):
+            stripped = line.strip()
+            low = stripped.lower()
+            if low.startswith("relationship") or low.startswith("关系") or low.startswith("relations:"):
+                section = "relations"
                 continue
-            content = line.lstrip("-*").strip()
+            if not stripped.startswith(("-", "*")):
+                continue
+            content = stripped.lstrip("-*").strip()
             if ":" in content:
                 parts = content.split(":", 1)
-                name = parts[0].strip().strip("*").strip()
+                head = parts[0].strip().strip("*").strip()
                 rest = parts[1].strip()
-                if "." in rest:
-                    sub = rest.split(".", 1)
-                    etype = sub[0].strip()
-                    desc = sub[1].strip()
+                if section == "entities":
+                    if "." in rest:
+                        sub = rest.split(".", 1)
+                        etype = sub[0].strip()
+                        desc = sub[1].strip()
+                    else:
+                        etype = rest
+                        desc = ""
+                    etype = _re.sub(r"^Type:\s*", "", etype, flags=_re.IGNORECASE)
+                    etype = etype.split("?")[0].strip().split(",")[0].strip()
+                    if len(head) >= 2 and etype and len(etype) <= 50:
+                        entities.append({
+                            "name": head,
+                            "type": etype.lower(),
+                            "description": (desc[:200] if desc else head),
+                        })
+                        entity_names.append(head)
                 else:
-                    etype = rest
-                    desc = ""
-                etype = _re.sub(r"^Type:\s*", "", etype, flags=_re.IGNORECASE)
-                etype = etype.split("?")[0].strip().split(",")[0].strip()
-                if len(name) >= 2 and etype and len(etype) <= 50:
-                    entities.append({
-                        "name": name,
-                        "type": etype.lower(),
-                        "description": (desc[:200] if desc else name),
-                    })
+                    # relations section: "- Source -> Target: description" or "- Source - Target"
+                    rel_desc = rest
+                    sep_match = _re.search(r"(.+?)\s*(?:->|→|=>|--?>|—>)\s*(.+)", head)
+                    if sep_match:
+                        src = sep_match.group(1).strip().strip("*").strip()
+                        tgt = sep_match.group(2).strip().strip("*").strip()
+                        if src and tgt and len(src) >= 2 and len(tgt) >= 2:
+                            relationships.append({
+                                "source": src,
+                                "target": tgt,
+                                "keywords": rel_desc[:50] if rel_desc else "相关",
+                                "description": rel_desc[:200] if rel_desc else f"{src} 与 {tgt} 相关",
+                            })
+        # If entities found but no relations, generate co-occurrence relations
+        if entities and not relationships and len(entities) >= 2:
+            for i in range(min(len(entities) - 1, 10)):
+                src = entities[i]["name"]
+                tgt = entities[i + 1]["name"]
+                relationships.append({
+                    "source": src,
+                    "target": tgt,
+                    "keywords": "相关",
+                    "description": f"{src} 与 {tgt} 在同一文档中共现",
+                })
         if entities:
             return _json.dumps({"entities": entities, "relationships": relationships}, ensure_ascii=False)
         # Fallback: empty JSON in LightRAG 1.5 format (entities/relationships, NOT high_level_*)
