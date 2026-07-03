@@ -12,13 +12,15 @@ const API_BASE = 'http://127.0.0.1:8765'
 let currentAudio: HTMLAudioElement | null = null
 let mouthAnimFrame: number | null = null
 let mouthCallback: ((open: number) => void) | null = null
+/** 当前播放的结束回调（speakText 设置，stopSpeaking 触发） */
+let currentOnEnded: (() => void) | null = null
 
 /** 设置口型回调（Live2DCanvas 订阅，音频播放时驱动嘴部） */
 export function setMouthCallback(cb: ((open: number) => void) | null): void {
   mouthCallback = cb
 }
 
-/** 停止当前正在播放的 TTS 音频 */
+/** 停止当前正在播放的 TTS 音频（同时触发当前 onEnded 回调通知 UI） */
 export function stopSpeaking(): void {
   if (currentAudio) {
     currentAudio.pause()
@@ -30,6 +32,12 @@ export function stopSpeaking(): void {
   }
   if (mouthCallback) {
     mouthCallback(0)
+  }
+  // 通知 UI 播放已停止（无论是自然结束还是被中断）
+  if (currentOnEnded) {
+    const cb = currentOnEnded
+    currentOnEnded = null
+    try { cb() } catch { /* ignore */ }
   }
 }
 
@@ -43,16 +51,20 @@ export function isSpeaking(): boolean {
  *
  * @param text 要合成的文本（≤500字符）
  * @param voice edge-tts 语音角色，默认 zh-CN-XiaoyiNeural
+ * @param onEnded 播放结束/被中断回调（用于 UI 更新播放状态）
  * @returns 是否成功播放
  */
 export async function speakText(
   text: string,
-  voice: string = 'zh-CN-XiaoyiNeural'
+  voice: string = 'zh-CN-XiaoyiNeural',
+  onEnded?: () => void
 ): Promise<boolean> {
   if (!text || !text.trim()) return false
 
-  // 停止上一个音频
+  // 停止上一个音频（会触发上一个 onEnded 回调通知旧 UI）
   stopSpeaking()
+  // 记录本次 onEnded 回调（用于自然结束/中断时通知 UI）
+  currentOnEnded = onEnded ?? null
 
   try {
     const resp = await fetch(`${API_BASE}/tts`, {
@@ -63,6 +75,8 @@ export async function speakText(
 
     if (!resp.ok) {
       console.error('[TTS] 请求失败:', resp.status)
+      currentOnEnded = null
+      onEnded?.()
       return false
     }
 
@@ -111,6 +125,8 @@ export async function speakText(
     return true
   } catch (err) {
     console.error('[TTS] 播放失败:', err)
+    currentOnEnded = null
+    onEnded?.()
     return false
   }
 }

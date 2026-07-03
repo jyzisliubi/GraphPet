@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { MessageCircle, Paperclip, X, Send, Plus, Trash2, ChevronLeft, ChevronRight, PanelLeft, Minus } from 'lucide-react'
 import { chatStream, type ChatSource, type ChatHistoryMessage } from '../services/chatService'
 import { playMessageSound, playErrorSound } from '../services/soundService'
-import { speakText } from '../services/ttsService'
+import { speakText, stopSpeaking, isSpeaking } from '../services/ttsService'
 import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
 import { useSettings } from '../stores/settingsStore'
 import NitoIcon from './NitoIcon'
@@ -935,14 +935,18 @@ function MessageItem({
   message,
   activeCiteId,
   onCiteClick,
+  ttsVoice,
   embedded: _embedded
 }: {
   message: StoreChatMessage
   activeCiteId: number | null
   onCiteClick: (id: number) => void
+  /** TTS 语音角色（仅在用户点击"朗读"按钮时使用） */
+  ttsVoice?: string
   embedded?: boolean
 }): JSX.Element {
   const [sourcesExpanded, setSourcesExpanded] = useState<boolean>(false)
+  const [isPlaying, setIsPlaying] = useState<boolean>(false)
 
   useEffect(() => {
     if (
@@ -985,6 +989,24 @@ function MessageItem({
 
   const hasSources =
     !isUser && !message.isError && Array.isArray(message.sources) && message.sources.length > 0
+  // 仅在 Nito 完成（非 streaming、非错误、有内容）的回答气泡上显示朗读按钮
+  const canSpeak =
+    !isUser &&
+    !message.isError &&
+    !message.isStreaming &&
+    !!message.content &&
+    message.content.trim().length > 0
+
+  const handleSpeakClick = (): void => {
+    if (isPlaying) {
+      stopSpeaking()
+      return
+    }
+    setIsPlaying(true)
+    void speakText(message.content, ttsVoice ?? 'zh-CN-XiaoyiNeural', () => {
+      setIsPlaying(false)
+    })
+  }
 
   return (
     <div className={rowClass}>
@@ -1031,6 +1053,31 @@ function MessageItem({
               </div>
             )}
           </div>
+        )}
+        {canSpeak && (
+          <button
+            type="button"
+            className="graphpet-chat-tts-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleSpeakClick()
+            }}
+            title={isPlaying ? '停止朗读' : '朗读这条回答'}
+            style={{
+              marginTop: 6,
+              padding: '2px 8px',
+              fontSize: 11,
+              lineHeight: 1.4,
+              background: isPlaying ? '#6366f1' : 'transparent',
+              color: isPlaying ? '#fff' : '#a1a1aa',
+              border: '1px solid #27272a',
+              borderRadius: 6,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isPlaying ? '⏹ 停止' : '🔊 朗读'}
+          </button>
         )}
       </div>
     </div>
@@ -1675,6 +1722,7 @@ export default function ChatPanel({
                 message={m}
                 activeCiteId={activeCiteId}
                 onCiteClick={handleCiteClick}
+                ttsVoice={settingsRef.current.ttsVoice}
                 embedded={embedded}
               />
             ))

@@ -20,7 +20,7 @@
 [![LightRAG](https://img.shields.io/badge/LightRAG-1.5+-FF6B9D)](https://github.com/HKUDS/LightRAG)
 [![Docling](https://img.shields.io/badge/Docling-2.0+-0078D4?logo=ibm&logoColor=white)](https://github.com/docling-project/docling)
 
-**简体中文** | English (Coming Soon)
+**简体中文** | [English](#english-summary)
 
 </div>
 
@@ -248,10 +248,11 @@ GraphPet/
 - ✅ 智能问答（Local / Global / Hybrid 三模式检索）
 - ✅ 管理面板（记忆图谱 / 文件列表 / 成长记录 / 时间线 / 深度对话）
 - ✅ 多格式支持（PDF / Word / TXT / Markdown / 代码 / 网页 / 图片）
+- ✅ TTS 语音播报 + Live2D 口型同步（edge-tts，设置面板可开关）
 
 ### v0.3.x — 计划中 🚧
 
-- 🚧 语音对话 — TTS 语音播报 + STT 语音输入
+- 🚧 STT 语音输入 — 麦克风实时识别
 - 🚧 宠物走动 — 桌面自由游走、爬窗口边缘、随机巡逻
 - 🚧 自定义模型 — 支持导入第三方 Live2D 模型
 - 🚧 内嵌 Python — 免安装运行时，开箱即用
@@ -350,3 +351,48 @@ Made with ❤️ by Jay Z
     <img alt="Star History Chart" src="https://star-history.com/jyzisliubi/GraphPet.svg" width="720" />
   </picture>
 </a>
+
+---
+
+## English Summary
+
+> **GraphPet** — An AI desktop pet that *learns from your files*.
+
+Most desktop pets just sit there looking cute. **Nito** can also eat your PDFs, Word docs, code, and web pages, build a knowledge graph from them (Docling + LightRAG), and answer your questions based on what she learned. She also speaks — TTS voice playback with Live2D lip-sync.
+
+### Highlights
+
+- **Zero-config free LLM** — Built-in aggregator of free Chinese LLM APIs (Pollinations etc.), works out of the box. No API key, no Ollama install required.
+- **8+ LLM providers** — DeepSeek, Zhipu, Kimi, SiliconFlow, OpenAI, Ollama, custom OpenAI-compatible endpoints.
+- **Knowledge-graph feeding** — Drag-and-drop files/URLs onto Nito; Docling parses them, LightRAG incrementally inserts entities/relations into a graph.
+- **Live2D Nito family** — 5 sister skins (Nito / Ni-J / Nico / Nietzsche / Nipsilon), 21 motion groups, emotion-driven expressions.
+- **TTS voice + lip-sync** — edge-tts (free Microsoft TTS) with `ParamMouthOpenY` driving Live2D mouth.
+- **Web panel** — Memory graph (SVG force-directed), file list, growth record, timeline, deep chat.
+
+### Tech stack
+
+Electron 31 · React 18 · TypeScript 5.5 · PIXI.js 6.5 · pixi-live2d-display · Python 3.10+ · FastAPI · Docling 2.0+ · LightRAG 1.5+ (HKU) · sentence-transformers + BGE-small-zh.
+
+### Quick start
+
+```bash
+git clone https://github.com/jyzisliubi/GraphPet.git
+cd GraphPet
+npm install
+cd python && pip install -r requirements.txt && cd ..
+npm run dev
+```
+
+Or grab a Windows installer from [Releases](https://github.com/jyzisliubi/GraphPet/releases).
+
+### Roadmap
+
+- ✅ v0.2.x — Live2D pet, free LLM, knowledge-graph feeding, smart Q&A, web panel, multi-format files, TTS + lip-sync
+- 🚧 v0.3.x — STT voice input, pet walking on desktop, custom Live2D model import, embedded Python, macOS/Linux
+- 🔮 v0.4.x — Screen understanding, multi-pet coexistence, plugin system, knowledge-graph sharing
+
+### License
+
+MIT — feel free to fork, modify, and share.
+
+> Full documentation is in Chinese above. PRs and Issues in English are also welcome.
