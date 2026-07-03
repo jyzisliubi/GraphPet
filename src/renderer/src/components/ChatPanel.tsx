@@ -5,7 +5,9 @@ import remarkGfm from 'remark-gfm'
 import { MessageCircle, Paperclip, X, Send, Plus, Trash2, ChevronLeft, ChevronRight, PanelLeft, Minus } from 'lucide-react'
 import { chatStream, type ChatSource, type ChatHistoryMessage } from '../services/chatService'
 import { playMessageSound, playErrorSound } from '../services/soundService'
+import { speakText } from '../services/ttsService'
 import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
+import { useSettings } from '../stores/settingsStore'
 import NitoIcon from './NitoIcon'
 
 export interface ChatPanelProps {
@@ -1070,6 +1072,10 @@ export default function ChatPanel({
     addMessage,
     updateMessage
   } = useChatStore()
+  const { settings } = useSettings()
+  // 用 ref 持有 settings，避免 settings 变化时 handleSend 重建（保持原依赖列表稳定）
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true)
   const [loading, setLoading] = useState<boolean>(false)
@@ -1319,6 +1325,10 @@ export default function ChatPanel({
             isStreaming: false
           })
           playMessageSound()
+          // TTS 语音播报（仅当用户开启时调用，不阻塞主流程）
+          if (settingsRef.current.ttsEnabled && accumulatedContent) {
+            void speakText(accumulatedContent, settingsRef.current.ttsVoice)
+          }
         } else if (!finalSuccess) {
           updateMessage(convId, assistantMsgId, {
             content: finalMessage || '回答失败',

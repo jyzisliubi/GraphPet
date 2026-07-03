@@ -3,6 +3,7 @@ import type { DragEvent, KeyboardEvent, ReactNode } from 'react'
 import { useChat } from '../hooks/useChat'
 import type { ChatMessage } from '../hooks/useChat'
 import type { ChatSource } from '../services/chatService'
+import { useSettings } from '../stores/settingsStore'
 import NitoIcon from '../components/NitoIcon'
 
 const DEEP_CHAT_CSS = `
@@ -247,7 +248,12 @@ function DeepChatMessageItem({
 }
 
 export default function DeepChat(): JSX.Element {
-  const { messages, loading, sendQuestion, clearMessages } = useChat({ storageKey: 'graphpet_deepchat_v1' })
+  const { settings } = useSettings()
+  const { messages, loading, sendQuestion, clearMessages } = useChat({
+    storageKey: 'graphpet_deepchat_v1',
+    ttsEnabled: settings.ttsEnabled,
+    ttsVoice: settings.ttsVoice
+  })
   const [input, setInput] = useState('')
   const [activeCiteId, setActiveCiteId] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)

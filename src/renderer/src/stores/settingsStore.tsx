@@ -36,6 +36,11 @@ export interface AppSettings {
   autoStart: boolean
   /** 宠物缩放系数 */
   petScale: number
+  // —— 语音配置 ——
+  /** TTS 语音播报开关（开启后 Nito 回答会用 edge-tts 朗读） */
+  ttsEnabled: boolean
+  /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
+  ttsVoice: string
 }
 
 /** 默认设置（与主进程 main/index.ts 中的 DEFAULT_SETTINGS 保持一致） */
@@ -48,7 +53,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   proactiveIntervalMin: 10,
   quietMode: false,
   autoStart: false,
-  petScale: 1.0
+  petScale: 1.0,
+  ttsEnabled: false,
+  ttsVoice: 'zh-CN-XiaoyiNeural'
 }
 
 /** Reducer Action 类型 */

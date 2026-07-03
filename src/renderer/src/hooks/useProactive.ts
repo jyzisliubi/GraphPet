@@ -46,9 +46,9 @@ export function useProactive(
           playMessageSound()
           showMessageRef.current(res.message)
         }
-      } catch (err) {
+      } catch {
         // 后端未就绪 / 网络错误时静默，不打扰用户（下次轮询自动重试）
-        console.error('[useProactive] 轮询主动消息失败:', err)
+        // 不打印 err 详情，避免在控制台暴露后端实现细节
       }
     }
 

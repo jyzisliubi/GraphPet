@@ -683,6 +683,15 @@ export default function SettingsPanel({
           format={(v) => `${v.toFixed(1)}×`}
         />
 
+        <Divider />
+
+        <GroupTitle>语音配置</GroupTitle>
+        <ToggleField
+          label="语音播报（Nito 回答时朗读）"
+          checked={draft.ttsEnabled}
+          onChange={(v) => patch({ ttsEnabled: v })}
+        />
+
         <div className="graphpet-settings-footer">
           <button
             className="graphpet-settings-btn graphpet-settings-btn-cancel"

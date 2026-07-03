@@ -14,6 +14,10 @@ export interface AppSettings {
   quietMode: boolean
   autoStart: boolean
   petScale: number
+  /** TTS 语音播报开关 */
+  ttsEnabled: boolean
+  /** TTS 语音角色（edge-tts ShortName） */
+  ttsVoice: string
 }
 
 export interface GraphPetAPI {

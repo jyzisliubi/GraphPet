@@ -1845,6 +1845,58 @@ def proactive_trivia() -> dict:
 
 
 # ========================
+# TTS 语音合成 API（edge-tts 集成）
+# ========================
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500, description="要合成的文本")
+    voice: str = Field("zh-CN-XiaoyiNeural", description="edge-tts 语音角色")
+
+
+@app.post("/tts")
+async def text_to_speech(req: TTSRequest):
+    """TTS 语音合成端点：用 edge-tts（微软免费TTS）将文本转为 mp3 音频流。
+
+    无需 API Key，中文质量好，延迟约 1-2 秒。
+    默认语音 zh-CN-XiaoyiNeural（晓伊，年轻女声，适合桌宠角色）。
+
+    返回 audio/mpeg 流，前端可直接用 <audio> 或 Audio API 播放。
+    """
+    try:
+        import edge_tts
+        from io import BytesIO
+
+        communicate = edge_tts.Communicate(req.text, req.voice)
+        audio_buffer = BytesIO()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_buffer.write(chunk["data"])
+        audio_buffer.seek(0)
+        return StreamingResponse(audio_buffer, media_type="audio/mpeg")
+    except ImportError:
+        return {"success": False, "error": "edge-tts 未安装，请运行 pip install edge-tts"}
+    except Exception as e:
+        return {"success": False, "error": f"TTS 合成失败: {type(e).__name__}: {e}"}
+
+
+@app.get("/tts/voices")
+async def list_tts_voices():
+    """列出可用的 edge-tts 中文语音角色。"""
+    try:
+        import edge_tts
+        voices = await edge_tts.list_voices()
+        zh_voices = [
+            {"name": v["ShortName"], "gender": v["Gender"], "friendly_name": v["FriendlyName"]}
+            for v in voices
+            if v["ShortName"].startswith("zh-CN")
+        ]
+        return {"voices": zh_voices, "count": len(zh_voices)}
+    except Exception as e:
+        return {"voices": [], "error": str(e)}
+
+
+# ========================
 # 启动入口
 # ========================
 

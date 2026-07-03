@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatStream, type ChatSource } from '../services/chatService'
 import { playMessageSound, playErrorSound } from '../services/soundService'
+import { speakText } from '../services/ttsService'
 
 // 聊天 Hook（对应 Task 19）
 //
@@ -43,6 +44,10 @@ export interface UseChatOptions {
   onEmotionChange?: (emotion: string) => void
   /** localStorage 持久化 key（Task 24 深度聊天用）；不传则不持久化（桌宠 ChatPanel 行为不变） */
   storageKey?: string
+  /** TTS 语音播报开关：开启后 Nito 回答会用 edge-tts 朗读 */
+  ttsEnabled?: boolean
+  /** TTS 语音角色（edge-tts ShortName，仅当 ttsEnabled 为 true 时使用） */
+  ttsVoice?: string
 }
 
 /** useChat 返回值 */
@@ -99,6 +104,12 @@ export function useChat(options?: UseChatOptions): UseChatResult {
   // 持久化 key 用 ref 持有，避免 effect 依赖变化导致重复读写
   const storageKeyRef = useRef(storageKey)
   storageKeyRef.current = storageKey
+
+  // TTS 配置用 ref 持有，避免 sendQuestion 依赖频繁变化
+  const ttsEnabledRef = useRef(options?.ttsEnabled ?? false)
+  ttsEnabledRef.current = options?.ttsEnabled ?? false
+  const ttsVoiceRef = useRef(options?.ttsVoice ?? 'zh-CN-XiaoyiNeural')
+  ttsVoiceRef.current = options?.ttsVoice ?? 'zh-CN-XiaoyiNeural'
 
   // 挂载后：若从 localStorage 加载了消息，把 idRef 推进到已用 localId 之后，
   // 避免新消息 id 与历史消息冲突。effect 仅在挂载时执行一次。
@@ -248,6 +259,10 @@ export function useChat(options?: UseChatOptions): UseChatResult {
 
         if (finalSuccess && accumulatedContent) {
           playMessageSound()
+          // TTS 语音播报（仅当用户开启时调用，不阻塞主流程）
+          if (ttsEnabledRef.current) {
+            void speakText(accumulatedContent, ttsVoiceRef.current)
+          }
         } else if (!finalSuccess) {
           playErrorSound()
           setError(finalMessage || '回答失败')

@@ -16,6 +16,10 @@ export interface AppSettings {
   quietMode: boolean
   autoStart: boolean
   petScale: number
+  /** TTS 语音播报开关 */
+  ttsEnabled: boolean
+  /** TTS 语音角色（edge-tts ShortName） */
+  ttsVoice: string
 }
 
 // IPC 通道名常量（与主进程保持一致）

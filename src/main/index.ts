@@ -409,6 +409,10 @@ interface AppSettings {
   quietMode: boolean
   autoStart: boolean
   petScale: number
+  /** TTS 语音播报开关（开启后 Nito 回答会用 edge-tts 朗读） */
+  ttsEnabled: boolean
+  /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
+  ttsVoice: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -420,7 +424,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   proactiveIntervalMin: 10,
   quietMode: false,
   autoStart: false,
-  petScale: 1
+  petScale: 1,
+  ttsEnabled: false,
+  ttsVoice: 'zh-CN-XiaoyiNeural'
 }
 
 /** 从 graphpet_state.json 读取设置，缺失则返回默认值 */

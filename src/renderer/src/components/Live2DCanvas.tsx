@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, type CSSProperties } from 'react'
 import { Application, Ticker } from 'pixi.js'
 import type { Live2DModel as Live2DModelType } from 'pixi-live2d-display'
+import { setMouthCallback } from '../services/ttsService'
 
 /**
  * Live2D 画布组件
@@ -446,6 +447,25 @@ export default function Live2DCanvas({
           { headY }
         )
 
+        // 注册 TTS 口型同步回调：音频播放时驱动 ParamMouthOpenY
+        // Cubism 2/4 模型均使用 ParamMouthOpenY 参数；失败静默（不影响渲染）
+        setMouthCallback((open: number): void => {
+          try {
+            const m = modelRef.current
+            if (!m) return
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const core = (m.internalModel as any)?.coreModel
+            if (core?.setParameterValueById) {
+              core.setParameterValueById('ParamMouthOpenY', open)
+            } else if (core?.setParamFloat) {
+              // Cubism 2 旧 API 兜底
+              core.setParamFloat('ParamMouthOpenY', open)
+            }
+          } catch {
+            /* 静默：参数不存在或模型未就绪 */
+          }
+        })
+
         scheduleIdleMotion()
       } catch (err) {
         if (destroyed) return
@@ -462,6 +482,8 @@ export default function Live2DCanvas({
     // 清理函数
     return () => {
       destroyed = true
+      // 清理 TTS 口型回调，防止卸载后仍被调用导致空指针
+      setMouthCallback(null)
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current)
         idleTimerRef.current = null
