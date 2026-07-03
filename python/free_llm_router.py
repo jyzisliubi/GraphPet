@@ -15,13 +15,28 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
-    "pollinations_simple": {
-        "name": "Pollinations (Simple)",
+    "pollinations_openai": {
+        "name": "Pollinations (OpenAI)",
         "type": "simple_get",
         "url_template": "https://text.pollinations.ai/{prompt}",
+        "model": "openai",
         "requires_key": False,
-        "priority": 99,
-        "description": "Pollinations简单GET接口",
+        "priority": 1,
+        "description": "OpenAI GPT model",
+        "extra_headers": {
+            "Referer": "https://pollinations.ai/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        "timeout": 60,
+    },
+    "pollinations_mistral": {
+        "name": "Pollinations (Mistral)",
+        "type": "simple_get",
+        "url_template": "https://text.pollinations.ai/{prompt}",
+        "model": "mistral",
+        "requires_key": False,
+        "priority": 2,
+        "description": "Mistral model, fast",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -30,34 +45,19 @@ FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
     },
     "pollinations_qwen": {
         "name": "Pollinations (Qwen)",
-        "type": "openai",
-        "base_url": "https://text.pollinations.ai/openai",
+        "type": "simple_get",
+        "url_template": "https://text.pollinations.ai/{prompt}",
         "model": "qwen",
         "requires_key": False,
-        "priority": 2,
-        "description": "通义千问，中文优化",
-        "extra_headers": {
-            "Referer": "https://pollinations.ai/",
-            "Origin": "https://pollinations.ai",
-        },
-        "timeout": 60,
-    },
-    "pollinations_qwen25": {
-        "name": "Pollinations (Qwen2.5)",
-        "type": "openai",
-        "base_url": "https://text.pollinations.ai/openai",
-        "model": "qwen2.5",
-        "requires_key": False,
         "priority": 3,
-        "description": "通义千问2.5",
+        "description": "Qwen, Chinese optimized",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
-            "Origin": "https://pollinations.ai",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         },
         "timeout": 60,
     },
 }
-
 CHINESE_SYSTEM_PROMPT = "请始终使用简体中文回复。回答简短自然，口语化，不要使用markdown格式。"
 
 _last_request_time = 0.0
@@ -153,9 +153,24 @@ class FreeLLMRouter:
         headers.update(provider.get("extra_headers", {}))
 
         if provider_type == "simple_get":
-            prompt_text = self._build_simple_prompt(messages)
+            system_parts = [m["content"] for m in messages if m["role"] == "system"]
+            system_prompt = "\n".join(system_parts) if system_parts else None
+            user_parts = []
+            for m in messages:
+                if m["role"] == "user":
+                    user_parts.append("User: " + m["content"])
+                elif m["role"] == "assistant":
+                    user_parts.append("Assistant: " + m["content"])
+            user_parts.append("Assistant:")
+            prompt_text = "\n\n".join(user_parts)
             encoded = urllib.parse.quote(prompt_text, safe="")
             url = provider["url_template"].format(prompt=encoded)
+            params = {"model": provider.get("model", "openai")}
+            if system_prompt:
+                params["system"] = system_prompt
+            if temperature is not None:
+                params["temperature"] = str(temperature)
+            url += "?" + urllib.parse.urlencode(params)
             req = urllib.request.Request(url, headers=headers, method="GET")
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 content = resp.read().decode("utf-8").strip()
@@ -210,7 +225,6 @@ class FreeLLMRouter:
     def chat(self, messages, temperature=0.7, max_tokens=1024, force_post=False):
         self._maybe_recover_one()
         providers = self._get_available_providers()
-        # 长prompt跳过simple_get（GET URL会截断，导致RAG上下文丢失）
         if force_post:
             providers = [(k, p) for k, p in providers if p.get("type") != "simple_get"]
         if not providers:
@@ -271,9 +285,6 @@ def get_router():
 
 
 def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
-    # RAG prompts with retrieved context can be very long; skip GET provider to avoid URL truncation
-    total_len = len(prompt or "") + sum(len(m.get("content", "")) for m in (history_messages or [])) + len(system_prompt or "")
-    force_post = total_len > 800
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt + "\n\n" + CHINESE_SYSTEM_PROMPT})
@@ -288,7 +299,7 @@ def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwarg
     messages.append({"role": "user", "content": prompt})
     temperature = kwargs.get("temperature", 0.7)
     max_tokens = kwargs.get("max_tokens", 2048)
-    return get_router().chat(messages, temperature=temperature, max_tokens=max_tokens, force_post=force_post)
+    return get_router().chat(messages, temperature=temperature, max_tokens=max_tokens)
 
 
 async def free_llm_model_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
