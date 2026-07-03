@@ -12,6 +12,7 @@ import type { CSSProperties, ReactNode } from 'react'
 // - 支持简单 markdown：**粗体** 与换行（正则替换，不引入 markdown 库）
 // - 点击气泡关闭（onClose）
 // - pointer-events: auto（可点击），z-index 100（在 DragRegion 之上）
+// - 支持思考气泡模式（isThinking）：显示"💭 思考中..."小气泡，带动画
 //
 // 自动消失定时由 store 层（bubbleStore）管理，组件本身不重复设置定时器，
 // 仅根据 visible props 控制淡入淡出与 DOM 挂载/卸载。
@@ -30,6 +31,8 @@ export interface BubbleProps {
   position?: 'top' | 'bottom'
   /** 动态顶部偏移（来自 Live2D 模型实际头顶位置，优先级高于硬编码） */
   anchorTop?: number
+  /** 是否显示思考气泡（带动画的"💭 思考中..."） */
+  isThinking?: boolean
 }
 
 /** 气泡样式 CSS（含 ::before 三角箭头 + 淡入淡出 transition） */
@@ -104,6 +107,35 @@ const BUBBLE_CSS = `
   color: #818cf8;
   font-weight: 600;
 }
+/* 思考气泡样式 */
+.graphpet-bubble--thinking {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.graphpet-bubble-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+.graphpet-bubble-thinking-dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #818cf8;
+  animation: graphpet-thinking-bounce 1.2s infinite ease-in-out;
+}
+.graphpet-bubble-thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.graphpet-bubble-thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes graphpet-thinking-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
 `
 
 const STYLE_ELEMENT_ID = 'graphpet-bubble-style'
@@ -144,17 +176,35 @@ function renderBubbleContent(text: string): ReactNode[] {
 }
 
 /**
+ * 渲染思考气泡内容：💭 思考中... + 三点跳动动画
+ */
+function renderThinkingContent(): ReactNode {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      💭 思考中
+      <span className="graphpet-bubble-thinking-dots">
+        <span />
+        <span />
+        <span />
+      </span>
+    </span>
+  )
+}
+
+/**
  * 气泡组件
  *
  * visible=true 时挂载并淡入；visible=false 时保持挂载播放淡出动画，
  * transition 结束后才卸载（保证淡出动画可见）。
+ * isThinking=true 时显示带动画的"💭 思考中..."小气泡。
  */
 export default function Bubble({
   message,
   visible,
   onClose,
   position = 'top',
-  anchorTop
+  anchorTop,
+  isThinking = false
 }: BubbleProps): JSX.Element | null {
   const [shouldRender, setShouldRender] = useState<boolean>(false)
   const [isVisible, setIsVisible] = useState<boolean>(false)
@@ -165,7 +215,8 @@ export default function Bubble({
   }, [])
 
   useEffect(() => {
-    if (visible) {
+    const shouldShow = visible || isThinking
+    if (shouldShow) {
       setShouldRender(true)
       setBounceComplete(false)
       const raf = requestAnimationFrame(() => {
@@ -174,18 +225,20 @@ export default function Bubble({
       return () => cancelAnimationFrame(raf)
     }
     setIsVisible(false)
-  }, [visible])
+  }, [visible, isThinking])
 
-  if (!shouldRender || !message) {
+  const hasContent = isThinking || (message && message.length > 0)
+  if (!shouldRender || !hasContent) {
     return null
   }
 
   const positionClass =
     position === 'bottom' ? 'graphpet-bubble--bottom' : 'graphpet-bubble--top'
   const visibilityClass = isVisible ? 'graphpet-bubble--visible' : 'graphpet-bubble--hidden'
+  const thinkingClass = isThinking ? ' graphpet-bubble--thinking' : ''
 
   const handleTransitionEnd = (): void => {
-    if (!visible) {
+    if (!visible && !isThinking) {
       setShouldRender(false)
     }
   }
@@ -195,38 +248,48 @@ export default function Bubble({
   }
 
   const handleClick = (): void => {
-    onClose?.()
+    if (!isThinking) {
+      onClose?.()
+    }
   }
 
   const bubbleStyle: CSSProperties = bounceComplete
     ? { animation: 'none' }
     : {}
 
+  const VIEW_HEIGHT = 580
+  const DEFAULT_TOP = 150
+  const MIN_TOP = 10
+  const BOTTOM_SAFE_MARGIN = 20
+
   if (position === 'bottom') {
     Object.assign(bubbleStyle, { bottom: '20px' })
   } else if (anchorTop != null && anchorTop > 0) {
-    // 动态定位：三角箭头在气泡底边向下 6px，让箭头尖端距头顶约 2px
-    // 气泡底边应在头顶上方 8px → bottom = VIEW_HEIGHT - (anchorTop - 8)
-    const VIEW_HEIGHT = 580
+    const estimatedBubbleHeight = isThinking ? 40 : 80
+    const spacing = 12
+    let calculatedTop = anchorTop - estimatedBubbleHeight - spacing
+    calculatedTop = Math.max(MIN_TOP, calculatedTop)
+    const maxTop = VIEW_HEIGHT - estimatedBubbleHeight - BOTTOM_SAFE_MARGIN
+    calculatedTop = Math.min(calculatedTop, maxTop)
     Object.assign(bubbleStyle, {
-      top: 'auto',
-      bottom: `${VIEW_HEIGHT - anchorTop + 8}px`
+      top: `${calculatedTop}px`,
+      bottom: 'auto'
     })
   } else {
-    Object.assign(bubbleStyle, { top: '230px' })
+    Object.assign(bubbleStyle, { top: `${DEFAULT_TOP}px` })
   }
 
   return (
     <div
-      className={`graphpet-bubble ${positionClass} ${visibilityClass}`}
+      className={`graphpet-bubble ${positionClass}${thinkingClass} ${visibilityClass}`}
       style={bubbleStyle}
       onClick={handleClick}
       onTransitionEnd={handleTransitionEnd}
       onAnimationEnd={handleAnimationEnd}
-      role="button"
-      tabIndex={0}
+      role={isThinking ? undefined : 'button'}
+      tabIndex={isThinking ? undefined : 0}
     >
-      {renderBubbleContent(message)}
+      {isThinking ? renderThinkingContent() : renderBubbleContent(message)}
     </div>
   )
 }

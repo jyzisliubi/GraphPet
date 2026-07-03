@@ -391,13 +391,13 @@ def _is_casual_chat(question: str) -> bool:
     return False
 
 
-def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.7, timeout: int = 15, history_messages: Optional[list] = None) -> Optional[str]:
+def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.7, timeout: int = 90, history_messages: Optional[list] = None) -> Optional[str]:
     """直接调用LLM进行闲聊/对话，不走RAG检索。
 
     关键设计：
     1. 使用单例线程池_llm_executor（避免每次创建/销毁线程池导致锁问题）
-    2. 15秒超时（本地7B模型推理较慢，给足够时间）
-    3. 失败后10秒冷却期（避免频繁重试，但也不会太久不可用）
+    2. 90秒超时（免费API网络调用较慢，给足够时间）
+    3. 失败后30秒冷却期（避免频繁重试）
 
     Args:
         system_prompt: 系统提示词
@@ -422,7 +422,7 @@ def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.
             system_prompt=system_prompt,
             history_messages=history_messages,
             temperature=temperature,
-            max_tokens=500,
+            max_tokens=800,
         )
 
     try:
@@ -435,12 +435,12 @@ def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.
         return result
     except concurrent.futures.TimeoutError:
         print(f"[GraphPet] LLM调用超时({timeout}s)，进入冷却期", file=_sys.stderr, flush=True)
-        _call_llm_chat._fail_cooldown = now + 10
+        _call_llm_chat._fail_cooldown = now + 30
         _llm_available = False
         return None
     except Exception as e:
         print(f"[GraphPet] LLM闲聊调用失败: {type(e).__name__}: {e}，进入冷却期", file=_sys.stderr, flush=True)
-        _call_llm_chat._fail_cooldown = now + 10
+        _call_llm_chat._fail_cooldown = now + 30
         _llm_available = False
         return None
 

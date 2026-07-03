@@ -18,7 +18,7 @@
 [![LightRAG](https://img.shields.io/badge/LightRAG-1.5+-FF6B9D)](https://github.com/HKUDS/LightRAG)
 [![Docling](https://img.shields.io/badge/Docling-2.0+-0078D4?logo=ibm&logoColor=white)](https://github.com/docling-project/docling)
 
-**简体中文** | [English](README.en.md)
+**简体中文** | English (Coming Soon)
 
 </div>
 

@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   push:
@@ -6,13 +6,12 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,16 +32,38 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install -r python/requirements.txt -t python/vendor
+          pip install --no-cache-dir -r python/requirements.txt -t python/vendor
           Get-ChildItem -Path python/vendor -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force
         shell: pwsh
 
       - name: Build & Package
         run: npm run dist:win
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ''
 
-      - name: Upload to Release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GraphPet-Windows
+          path: release/*.exe
+          retention-days: 30
+
+  release:
+    name: Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GraphPet-Windows
+          path: release
+
+      - name: Release to GitHub
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -51,10 +72,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: GraphPet-Windows
-          path: release/*.exe
-          retention-days: 30

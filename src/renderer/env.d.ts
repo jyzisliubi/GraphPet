@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 /** LLM 服务提供方 */
-export type LlmProvider = 'freellm' | 'ollama' | 'openai' | 'deepseek' | 'zhipu' | 'moonshot' | 'siliconflow' | 'aliyun' | 'pollinations' | 'freellmapi' | 'openai-compatible' | 'custom'
+export type LlmProvider = 'freellm' | 'deepseek' | 'zhipu' | 'kimi' | 'siliconflow' | 'openai' | 'openai-compatible' | 'custom' | 'ollama'
 
 /** 应用设置 Schema（与 main 进程和 settingsStore 中的定义保持结构一致） */
 export interface AppSettings {

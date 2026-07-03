@@ -1,14 +1,14 @@
 {
   "name": "graphpet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "GraphPet - 🐾 你的AI桌面宠物，用知识图谱记住一切。喂文件学习知识，Live2D互动陪伴",
   "main": "out/main/index.js",
-  "author": "GraphPet Team",
+  "author": "Jay Z <3364415961@qq.com>",
   "license": "MIT",
-  "homepage": "https://github.com/graphpet/GraphPet",
+  "homepage": "https://github.com/jyzisliubi/GraphPet",
   "repository": {
     "type": "git",
-    "url": "https://github.com/graphpet/GraphPet.git"
+    "url": "https://github.com/jyzisliubi/GraphPet.git"
   },
   "keywords": ["electron", "live2d", "desktop-pet", "ai", "knowledge-graph", "rag", "llm", "virtual-pet", "nito", "graphpet"],
   "scripts": {
@@ -22,7 +22,7 @@
     "dist:linux": "electron-vite build && electron-builder --linux"
   },
   "build": {
-    "appId": "com.graphpet.app",
+    "appId": "com.jyzisliubi.graphpet",
     "productName": "GraphPet",
     "directories": {
       "output": "release"
@@ -73,7 +73,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "artifactName": "GraphPet-${version}-${arch}.${ext}"
     },
     "nsis": {

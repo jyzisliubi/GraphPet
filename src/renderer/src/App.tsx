@@ -23,7 +23,7 @@ import { useFeed } from './hooks/useFeed'
 import { useProactive } from './hooks/useProactive'
 import { BubbleProvider } from './stores/bubbleStore'
 import { SettingsProvider, useSettings } from './stores/settingsStore'
-import { ChatStoreProvider } from './stores/chatStore'
+import { ChatStoreProvider, useChatStore } from './stores/chatStore'
 import type { AppSettings } from './stores/settingsStore'
 import PanelApp from './panels/PanelApp'
 import ChatWindowApp from './ChatWindowApp'
@@ -64,8 +64,9 @@ function AppInner(): JSX.Element {
   const [modelHeadY, setModelHeadY] = useState<number>(0)
   const { bubbleProps, showMessage } = useBubble()
   const { settings, saveSettings, updateSettings } = useSettings()
+  const { createConversation } = useChatStore()
 
-  const { feeding, feedFile, feedUrl, feedFileBatch } = useFeed({
+  const { feeding, feedFile, feedUrl, feedFileBatch, cancelCurrentFeed } = useFeed({
     onFeedStart: () => {
       try { live2dApiRef.current?.triggerMotion('eat') } catch { /* ignore */ }
     },
@@ -89,6 +90,7 @@ function AppInner(): JSX.Element {
   const [chatPanelVisible, setChatPanelVisible] = useState(false)
   const [triplePreview, setTriplePreview] = useState<FeedResultPreview | null>(null)
   const [feedProgress, setFeedProgress] = useState<{ visible: boolean; files: FeedFileItem[] }>({ visible: false, files: [] })
+  const [chatThinking, setChatThinking] = useState<boolean>(false)
 
   const isDraggingRef = useRef(false)
   const isFileDraggingRef = useRef(false)
@@ -219,8 +221,9 @@ function AppInner(): JSX.Element {
 
   const handleFeedProgressDialogClose = useCallback((): void => {
     feedCancelRef.current = true
+    cancelCurrentFeed()
     setFeedProgress({ visible: false, files: [] })
-  }, [])
+  }, [cancelCurrentFeed])
 
   const handleBatchFeed = useCallback(async (): Promise<void> => {
     feedCancelRef.current = false
@@ -306,6 +309,10 @@ function AppInner(): JSX.Element {
       case 'chat':
         window.api.openChat()
         break
+      case 'new-chat':
+        createConversation()
+        setChatPanelVisible(true)
+        break
       case 'feed-file':
         void handleBatchFeed()
         break
@@ -336,7 +343,7 @@ function AppInner(): JSX.Element {
         window.api.quit()
         break
     }
-  }, [closeContextMenu, handleBatchFeed, handleSpitLast, settings.quietMode, updateSettings, showMessage])
+  }, [closeContextMenu, handleBatchFeed, handleSpitLast, settings.quietMode, updateSettings, showMessage, createConversation])
 
   const handleSkinSelect = useCallback(
     (skinPath: string, skinFormat?: 'cubism2' | 'cubism4'): void => {
@@ -406,8 +413,10 @@ function AppInner(): JSX.Element {
   )
 
   const handleChatThinkingChange = useCallback((thinking: boolean): void => {
+    setChatThinking(thinking)
     try {
       if (thinking) {
+        live2dApiRef.current?.setExpression('2')
         live2dApiRef.current?.triggerMotion('thinking')
       } else {
         live2dApiRef.current?.setExpression(0)
@@ -495,7 +504,8 @@ function AppInner(): JSX.Element {
   }, [])
 
   const handleChatNewChat = useCallback((): void => {
-  }, [])
+    createConversation()
+  }, [createConversation])
 
   const renderContent = (): JSX.Element => {
     if (loading) {
@@ -533,7 +543,7 @@ function AppInner(): JSX.Element {
         {renderContent()}
       </DragRegion>
 
-      <Bubble {...bubbleProps} anchorTop={modelHeadY} />
+      <Bubble {...bubbleProps} anchorTop={modelHeadY} isThinking={chatThinking} />
 
       <ErrorBanner />
 

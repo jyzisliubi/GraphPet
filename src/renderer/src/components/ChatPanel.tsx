@@ -1371,12 +1371,15 @@ export default function ChatPanel({
   }
 
   const handleNewChat = (): void => {
-    createConversation()
+    if (onNewChat) {
+      onNewChat()
+    } else {
+      createConversation()
+    }
     setActiveCiteId(null)
     inputValueRef.current = ''
     setInput('')
     setError(null)
-    onNewChat?.()
   }
 
   const handleDeleteConversation = (e: React.MouseEvent, id: string): void => {

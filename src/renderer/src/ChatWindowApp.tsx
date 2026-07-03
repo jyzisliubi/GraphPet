@@ -5,7 +5,7 @@ import { useBubble } from './hooks/useBubble'
 import { useFeed } from './hooks/useFeed'
 import { BubbleProvider } from './stores/bubbleStore'
 import { SettingsProvider } from './stores/settingsStore'
-import { ChatStoreProvider } from './stores/chatStore'
+import { ChatStoreProvider, useChatStore } from './stores/chatStore'
 import Bubble from './components/Bubble'
 
 const rootStyle: CSSProperties = {
@@ -30,6 +30,7 @@ function ChatWindowInner(): JSX.Element {
     onFeedStart: () => showMessage('吃东西啦...', 1500),
     onFeedEnd: (ok) => showMessage(ok ? '吃饱了！记住知识点了~' : '吃不下这个...', 2500)
   })
+  const { createConversation } = useChatStore()
 
   useEffect(() => {
     const splash = document.getElementById('graphpet-splash')
@@ -48,8 +49,8 @@ function ChatWindowInner(): JSX.Element {
   }, [])
 
   const handleNewChat = useCallback((): void => {
-    // ChatPanel 内部的 useChat 已经通过 clearMessages 处理
-  }, [])
+    createConversation()
+  }, [createConversation])
 
   const handleEmotionChange = useCallback((emotion: string): void => {
     try { window.api.sendEmotion(emotion) } catch { /* ignore */ }

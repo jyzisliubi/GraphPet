@@ -36,29 +36,34 @@ if (!gotTheLock && process.env.NODE_ENV !== 'development') {
 
 /**
  * 解析资源路径，兼容开发模式和打包后 (asar) 模式
- * 按优先级依次尝试：app.getAppPath() → __dirname/../.. → process.resourcesPath
+ * 生产环境优先使用 process.resourcesPath (extraResources)，开发模式使用项目目录
  */
 function resolveResourcePath(...parts: string[]): string {
+  const isPackaged = app.isPackaged
   const candidates: string[] = []
-  try {
-    candidates.push(path.join(app.getAppPath(), ...parts))
-  } catch {
-    /* 忽略：app 未就绪时 getAppPath 可能抛错 */
-  }
-  candidates.push(path.join(__dirname, '../..', ...parts))
-  try {
-    if (process.resourcesPath) candidates.push(path.join(process.resourcesPath, ...parts))
-  } catch {
-    /* 忽略 */
+  if (isPackaged) {
+    try {
+      if (process.resourcesPath) candidates.push(path.join(process.resourcesPath, ...parts))
+    } catch {}
+    candidates.push(path.join(__dirname, '../..', ...parts))
+    try {
+      candidates.push(path.join(app.getAppPath(), ...parts))
+    } catch {}
+  } else {
+    try {
+      candidates.push(path.join(app.getAppPath(), ...parts))
+    } catch {}
+    candidates.push(path.join(__dirname, '../..', ...parts))
+    try {
+      if (process.resourcesPath) candidates.push(path.join(process.resourcesPath, ...parts))
+    } catch {}
   }
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) return p
-    } catch {
-      /* 忽略 */
-    }
+    } catch {}
   }
-  return candidates[1] || candidates[0]
+  return candidates[0] || candidates[1] || candidates[2]
 }
 
 // ======================== Python 后端配置 ========================
@@ -334,11 +339,10 @@ function waitForPythonReady(): Promise<void> {
 
 /** 创建系统托盘图标和菜单 */
 function createTray(): void {
-  const iconPath = path.join(__dirname, '../../assets/icon.png')
   let icon: Electron.NativeImage
   try {
-    if (fs.existsSync(iconPath)) {
-      icon = nativeImage.createFromPath(iconPath)
+    if (fs.existsSync(ICON_PATH)) {
+      icon = nativeImage.createFromPath(ICON_PATH)
     } else {
       icon = nativeImage.createEmpty()
     }
@@ -396,7 +400,7 @@ function createTray(): void {
 
 /** 应用设置类型（与 preload/index.ts 中的 AppSettings 保持一致） */
 interface AppSettings {
-  llmProvider: 'freellm' | 'ollama' | 'openai-compatible' | 'pollinations' | 'siliconflow' | 'aliyun' | 'freellmapi' | 'custom' | 'openai' | 'deepseek' | 'zhipu' | 'moonshot'
+  llmProvider: 'freellm' | 'deepseek' | 'zhipu' | 'kimi' | 'siliconflow' | 'openai' | 'openai-compatible' | 'custom' | 'ollama'
   llmModel: string
   llmApiBase: string
   llmApiKey: string

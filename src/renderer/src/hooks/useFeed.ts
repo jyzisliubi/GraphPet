@@ -131,15 +131,24 @@ export function useFeed(options?: UseFeedOptions): {
     onProgress: (progress: FeedBatchProgress) => void,
     isCancelled: () => boolean
   ) => Promise<FeedBatchSummary>
+  cancelCurrentFeed: () => void
 } {
   const [feeding, setFeeding] = useState<boolean>(false)
   const { showMessage } = useBubble()
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // 用 ref 持有回调，避免外部传入内联函数时导致 useCallback 依赖频繁变化
   const onFeedStartRef = useRef(options?.onFeedStart)
   const onFeedEndRef = useRef(options?.onFeedEnd)
   onFeedStartRef.current = options?.onFeedStart
   onFeedEndRef.current = options?.onFeedEnd
+
+  const cancelCurrentFeed = useCallback((): void => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
 
   // 单次喂食文件：消化中气泡 → SSE 流式进度 → 结果气泡（P0-C）
   // fileSize 来自拖拽时 File.size，用于前端文件大小分流提示
@@ -248,6 +257,9 @@ export function useFeed(options?: UseFeedOptions): {
 
         onProgress({ index: i, status: 'feeding', stage: 'parsing', progress: 0, stageMessage: '准备中...' })
 
+        const controller = new AbortController()
+        abortControllerRef.current = controller
+
         try {
           const result = await feedFileStreaming(filePaths[i], (event) => {
             if (event.stage !== 'done' && event.stage !== 'error') {
@@ -259,7 +271,7 @@ export function useFeed(options?: UseFeedOptions): {
                 stageMessage: event.message
               })
             }
-          })
+          }, controller.signal)
           if (result.success) {
             success++
             onProgress({ index: i, status: 'success', message: result.message })
@@ -268,12 +280,18 @@ export function useFeed(options?: UseFeedOptions): {
             onProgress({ index: i, status: 'failed', message: result.message })
           }
         } catch (err) {
-          failed++
-          onProgress({
-            index: i,
-            status: 'failed',
-            message: err instanceof Error ? err.message : String(err)
-          })
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            onProgress({ index: i, status: 'failed', message: '已取消' })
+          } else {
+            failed++
+            onProgress({
+              index: i,
+              status: 'failed',
+              message: err instanceof Error ? err.message : String(err)
+            })
+          }
+        } finally {
+          abortControllerRef.current = null
         }
       }
 
@@ -284,5 +302,5 @@ export function useFeed(options?: UseFeedOptions): {
     []
   )
 
-  return { feeding, feedFile, feedUrl, feedFileBatch }
+  return { feeding, feedFile, feedUrl, feedFileBatch, cancelCurrentFeed }
 }

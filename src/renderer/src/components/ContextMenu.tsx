@@ -9,7 +9,8 @@ import {
   Brain,
   Trash2,
   Layout,
-  LogOut
+  LogOut,
+  Plus
 } from 'lucide-react'
 
 // 右键菜单浮层组件（对应 Task 6）
@@ -59,6 +60,7 @@ interface MenuItemDef {
 // 分组分隔：[聊天/喂文件/喂网页 URL] | [设置/换皮肤] | [我的记忆/吐掉最近吃的/打开网页面板] | [退出]
 const MENU_ITEMS: MenuItemDef[] = [
   { key: 'chat', icon: MessageCircle, label: '聊天' },
+  { key: 'new-chat', icon: Plus, label: '新对话' },
   { key: 'feed-file', icon: Paperclip, label: '喂文件' },
   { key: 'feed-url', icon: Globe, label: '喂网页 URL' },
   { key: 'settings', icon: Settings, label: '设置', dividerBefore: true },

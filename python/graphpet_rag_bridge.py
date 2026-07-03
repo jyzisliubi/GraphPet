@@ -682,7 +682,7 @@ def pull_model_stream(model_name: str, emit=None) -> bool:
     _emit("pulling", 0, f"开始拉取模型 {model_name}...")
     t0 = _time.time()
     try:
-        client = ollama.Client(host=OLLAMA_HOST)
+        client = ollama.Client(host=LLM_API_BASE)
         stream = client.pull(model_name, stream=True)
         last_pct = -1
         for chunk in stream:
@@ -813,7 +813,7 @@ def _parse_image_with_ollama(source: str) -> Optional[str]:
     vision_models = ['moondream:1.8b', 'minicpm-v:8b', 'llava:7b', 'llava:13b']
     try:
         import ollama
-        client = ollama.Client(host=OLLAMA_HOST)
+        client = ollama.Client(host=LLM_API_BASE)
         resp = client.list()
         # ollama 0.6.x: resp.models 是 list[Model]，.model 是名字
         available = []

@@ -152,7 +152,7 @@ def rewrite_triple_to_trivia(triple: Dict[str, str]) -> str:
         )
         # temperature 稍高让改写更有变化；max_tokens 限制为短句
         result = bridge.call_llm(
-            system_prompt, user_prompt, temperature=0.8, max_tokens=120
+            user_prompt, system_prompt=system_prompt, temperature=0.8, max_tokens=120
         )
         if result and isinstance(result, str) and result.strip():
             return result.strip()

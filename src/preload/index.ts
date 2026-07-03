@@ -7,7 +7,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron
 // 应用设置 Schema（与渲染进程 settingsStore.ts 中的 AppSettings 保持结构一致）
 // 此处单独定义是因为 preload 与 renderer 分属不同 tsconfig 工程，无法跨工程导入类型
 export interface AppSettings {
-  llmProvider: 'ollama' | 'openai-compatible' | 'pollinations' | 'siliconflow' | 'aliyun' | 'freellmapi' | 'custom'
+  llmProvider: 'freellm' | 'deepseek' | 'zhipu' | 'kimi' | 'siliconflow' | 'openai' | 'openai-compatible' | 'custom' | 'ollama'
   llmModel: string
   llmApiBase: string
   llmApiKey: string
