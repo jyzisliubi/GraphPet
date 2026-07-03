@@ -1,0 +1,19 @@
+{
+  "name": "freellmapi-cn",
+  "version": "1.0.0",
+  "description": "国内免费LLM API聚合网关 - 零配置开箱即用，聚合国内免费大模型为统一OpenAI兼容接口",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["llm", "free-api", "openai-compatible", "chinese", "aggregator"],
+  "author": "GraphPet Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  },
+  "engines": { "node": ">=18.0.0" }
+}

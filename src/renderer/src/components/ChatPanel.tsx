@@ -1,0 +1,1695 @@
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import type { KeyboardEvent, ReactNode, CSSProperties } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { MessageCircle, Paperclip, X, Send, Plus, Trash2, ChevronLeft, ChevronRight, PanelLeft, Minus } from 'lucide-react'
+import { chatStream, type ChatSource, type ChatHistoryMessage } from '../services/chatService'
+import { playMessageSound, playErrorSound } from '../services/soundService'
+import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
+import NitoIcon from './NitoIcon'
+
+export interface ChatPanelProps {
+  visible: boolean
+  onClose: () => void
+  onThinkingChange?: (thinking: boolean) => void
+  onEmotionChange?: (emotion: string) => void
+  searchMode?: string
+  onFeedFile?: (filePath: string) => Promise<void> | void
+  embedded?: boolean
+  externalMessages?: Array<{ role: string; content: string }>
+  onMessagesChange?: (msgs: Array<{ role: string; content: string }>) => void
+  onNewChat?: () => void
+}
+
+const CHAT_PANEL_CSS = `.graphpet-chat-panel {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  width: 480px;
+  max-width: calc(100vw - 16px);
+  height: 600px;
+  max-height: calc(100vh - 16px);
+  z-index: 9998;
+  display: flex;
+  flex-direction: row;
+  background: #111113;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  color: #e4e4e7;
+  overflow: hidden;
+  user-select: none;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  animation: graphpet-chat-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+.graphpet-chat-panel.graphpet-chat-panel--embedded {
+  position: relative;
+  top: 0; right: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  background: #0a0a0a;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  flex: 1;
+  overflow: hidden;
+}
+@keyframes graphpet-chat-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* 侧边栏 */
+.graphpet-chat-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  min-width: 0;
+  min-height: 0;
+  background: #111113;
+  border-right: 1px solid #27272a;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.graphpet-chat-sidebar--collapsed {
+  width: 0;
+  opacity: 0;
+  border-right: none;
+}
+.graphpet-chat-sidebar-header {
+  padding: 10px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.graphpet-chat-new-btn {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #6366f1;
+  background: transparent;
+  color: #6366f1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.graphpet-chat-new-btn:hover {
+  background: #6366f1;
+  color: #ffffff;
+}
+.graphpet-chat-collapse-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.graphpet-chat-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
+.graphpet-chat-conv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+}
+.graphpet-chat-conv-list::-webkit-scrollbar {
+  width: 4px;
+}
+.graphpet-chat-conv-list::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 2px;
+}
+.graphpet-chat-conv-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.graphpet-chat-conv-item {
+  height: 52px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+  margin-bottom: 2px;
+}
+.graphpet-chat-conv-item:hover {
+  background: #27272a;
+}
+.graphpet-chat-conv-item--active {
+  background: rgba(99, 102, 241, 0.15) !important;
+}
+.graphpet-chat-conv-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: #6366f1;
+  border-radius: 0 2px 2px 0;
+}
+.graphpet-chat-conv-info {
+  flex: 1;
+  min-width: 0;
+}
+.graphpet-chat-conv-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e4e4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.graphpet-chat-conv-preview {
+  font-size: 11px;
+  color: #71717a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.graphpet-chat-conv-delete {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  border-radius: 6px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.graphpet-chat-conv-item:hover .graphpet-chat-conv-delete {
+  display: flex;
+}
+.graphpet-chat-conv-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+/* 展开按钮（侧边栏折叠时显示） */
+.graphpet-chat-expand-btn {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #27272a;
+  background: #18181b;
+  color: #a1a1aa;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.graphpet-chat-expand-btn:hover {
+  background: #27272a;
+  color: #e4e4e7;
+}
+/* 主聊天区 */
+.graphpet-chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+/* 标题栏 */
+.graphpet-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #111113;
+  color: #fafafa;
+  flex-shrink: 0;
+  cursor: move;
+  user-select: none;
+  min-height: 44px;
+  border-bottom: 1px solid #27272a;
+}
+.graphpet-chat-panel--embedded .graphpet-chat-header {
+  cursor: move;
+  padding: 8px 12px;
+  background: #111113;
+}
+.graphpet-chat-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.graphpet-chat-title-icon {
+  font-size: 20px;
+  color: #6366f1;
+}
+.graphpet-chat-header-actions {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  align-items: center;
+}
+.graphpet-chat-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #71717a;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+.graphpet-chat-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
+.graphpet-chat-icon-btn--close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+.graphpet-chat-panel--embedded .graphpet-chat-icon-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  border-radius: 8px;
+  background: transparent;
+}
+.graphpet-chat-panel--embedded .graphpet-chat-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.graphpet-chat-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.graphpet-chat-tool-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: #c7d2fe;
+}
+/* 错误提示条 */
+.graphpet-chat-error-bar {
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 12px;
+  border-radius: 10px;
+  margin: 8px 12px;
+  flex-shrink: 0;
+}
+/* 成功 toast */
+.graphpet-chat-toast {
+  padding: 10px 14px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+  font-size: 12px;
+  border-radius: 10px;
+  margin: 8px 12px;
+  flex-shrink: 0;
+  animation: graphpet-toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes graphpet-toast-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* 消息列表 */
+.graphpet-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #0a0a0a;
+}
+.graphpet-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.graphpet-chat-messages::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+.graphpet-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+.graphpet-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* 消息行 */
+.graphpet-chat-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 8px;
+}
+.graphpet-chat-row--user {
+  justify-content: flex-end;
+}
+.graphpet-chat-row--nito {
+  justify-content: flex-start;
+}
+/* Nito 头像 */
+.graphpet-chat-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+/* 气泡 */
+.graphpet-chat-bubble {
+  max-width: 78%;
+  min-width: 0;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.graphpet-chat-bubble--user {
+  background: #6366f1;
+  color: #ffffff;
+  border-radius: 16px 16px 4px 16px;
+  white-space: pre-wrap;
+}
+.graphpet-chat-bubble--nito {
+  background: #18181b;
+  color: #e4e4e7;
+  border: 1px solid #27272a;
+  border-radius: 16px 16px 16px 4px;
+}
+.graphpet-chat-bubble--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+/* 思考中三点跳动 */
+.graphpet-chat-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px;
+}
+.graphpet-chat-thinking span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6366f1;
+  animation: graphpet-chat-bounce 1.2s infinite ease-in-out;
+}
+.graphpet-chat-thinking span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.graphpet-chat-thinking span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes graphpet-chat-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+/* 引用上标 */
+.graphpet-chat-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: super;
+  font-size: 10.5px;
+  line-height: 1;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+  font-weight: 600;
+}
+.graphpet-chat-cite:hover {
+  background: rgba(99, 102, 241, 0.25);
+}
+.graphpet-chat-cite--active {
+  background: #6366f1;
+  color: #ffffff;
+}
+/* Markdown 渲染样式 */
+.graphpet-chat-md {
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.graphpet-chat-md p {
+  margin: 0 0 8px 0;
+}
+.graphpet-chat-md p:last-child {
+  margin-bottom: 0;
+}
+.graphpet-chat-md strong {
+  color: #fafafa;
+  font-weight: 600;
+}
+.graphpet-chat-md em {
+  color: #c4b5fd;
+  font-style: italic;
+}
+.graphpet-chat-md code {
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+}
+.graphpet-chat-md pre {
+  background: #0f0f11;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.graphpet-chat-md pre code {
+  background: transparent;
+  color: #e4e4e7;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12px;
+}
+.graphpet-chat-md ul, .graphpet-chat-md ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.graphpet-chat-md li {
+  margin: 3px 0;
+}
+.graphpet-chat-md h1, .graphpet-chat-md h2, .graphpet-chat-md h3, .graphpet-chat-md h4 {
+  margin: 10px 0 6px 0;
+  color: #fafafa;
+  font-weight: 600;
+}
+.graphpet-chat-md h1 { font-size: 16px; }
+.graphpet-chat-md h2 { font-size: 15px; }
+.graphpet-chat-md h3 { font-size: 14px; }
+.graphpet-chat-md blockquote {
+  border-left: 3px solid #6366f1;
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: #a1a1aa;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 0 6px 6px 0;
+}
+.graphpet-chat-md a {
+  color: #818cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.graphpet-chat-md a:hover {
+  color: #a5b4fc;
+}
+.graphpet-chat-md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12.5px;
+}
+.graphpet-chat-md th, .graphpet-chat-md td {
+  border: 1px solid #27272a;
+  padding: 6px 10px;
+  text-align: left;
+}
+.graphpet-chat-md th {
+  background: #27272a;
+  color: #fafafa;
+}
+.graphpet-chat-md hr {
+  border: none;
+  border-top: 1px solid #27272a;
+  margin: 10px 0;
+}
+/* sources 折叠区 */
+.graphpet-chat-sources {
+  margin-top: 8px;
+  border-top: 1px solid #27272a;
+  padding-top: 8px;
+}
+.graphpet-chat-sources-toggle {
+  font-size: 11.5px;
+  color: #71717a;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.graphpet-chat-sources-toggle:hover {
+  color: #a1a1aa;
+}
+.graphpet-chat-source-item {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0a0a0a;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  border-left: 3px solid #3f3f46;
+  transition: background 0.2s, border-left-color 0.2s;
+}
+.graphpet-chat-source-item--highlight {
+  background: rgba(99, 102, 241, 0.08);
+  border-left-color: #6366f1;
+}
+.graphpet-chat-source-id {
+  font-weight: 700;
+  color: #c7d2fe;
+  margin-right: 4px;
+}
+.graphpet-chat-source-score {
+  color: #71717a;
+  font-size: 10.5px;
+  margin-left: 4px;
+}
+.graphpet-chat-source-entity {
+  color: #c7d2fe;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.graphpet-chat-source-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+/* 流式输出光标 */
+.graphpet-chat-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 15.5px;
+  background: #6366f1;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: graphpet-cursor-blink 0.8s infinite;
+  border-radius: 1px;
+}
+@keyframes graphpet-cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+/* 空状态 */
+.graphpet-chat-empty {
+  margin: auto;
+  text-align: center;
+  color: #71717a;
+  font-size: 13.5px;
+  line-height: 1.7;
+  padding: 30px 20px;
+}
+.graphpet-chat-empty-subtitle {
+  color: #52525b;
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+.graphpet-chat-empty-emoji {
+  font-size: 64px;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+/* 快捷操作区（嵌入模式空状态） */
+.graphpet-chat-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.graphpet-chat-quick-btn {
+  padding: 8px 14px;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.graphpet-chat-quick-btn:hover {
+  border-color: #6366f1;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.08);
+}
+/* 输入区 */
+.graphpet-chat-input-area {
+  flex-shrink: 0;
+  padding: 12px;
+  background: #18181b;
+  border-top: 1px solid #27272a;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.graphpet-chat-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  max-height: 120px;
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: #e4e4e7;
+  background: #27272a;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+.graphpet-chat-input:focus {
+  border-color: #6366f1;
+  background: #27272a;
+}
+.graphpet-chat-input::placeholder {
+  color: #71717a;
+}
+.graphpet-chat-send {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #6366f1;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.graphpet-chat-send:hover:not(:disabled) {
+  background: #818cf8;
+}
+.graphpet-chat-send:active:not(:disabled) {
+  background: #4f46e5;
+}
+.graphpet-chat-send:disabled {
+  background: #3f3f46;
+  cursor: not-allowed;
+  color: #71717a;
+}
+/* 拖拽上传遮罩 */
+.gp-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(99, 102, 241, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 2px dashed #6366f1;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: graphpet-fade-in 0.15s ease-out forwards;
+}
+.gp-drop-overlay-inner {
+  text-align: center;
+}
+.gp-drop-overlay-icon {
+  margin-bottom: 12px;
+  animation: graphpet-float 2s ease-in-out infinite;
+  display: flex;
+  justify-content: center;
+}
+.gp-drop-overlay-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #c7d2fe;
+}
+@keyframes graphpet-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes graphpet-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+/* Feeding 进度提示 */
+.graphpet-chat-feeding {
+  margin: 8px 12px;
+  padding: 10px 14px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+.graphpet-chat-feeding-progress {
+  margin-top: 6px;
+  height: 4px;
+  background: #27272a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.graphpet-chat-feeding-progress-bar {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+`
+
+let styleInjected = false
+function injectStyle(): void {
+  if (styleInjected) return
+  if (typeof document === 'undefined') return
+  const el = document.createElement('style')
+  el.textContent = CHAT_PANEL_CSS
+  document.head.appendChild(el)
+  styleInjected = true
+}
+
+type AnswerSegment =
+  | { type: 'text'; value: string }
+  | { type: 'cite'; id: number }
+
+function parseAnswer(text: string): AnswerSegment[] {
+  const segments: AnswerSegment[] = []
+  const regex = /\[(\d+)\]/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', value: text.slice(lastIndex, match.index) })
+    }
+    segments.push({ type: 'cite', id: Number(match[1]) })
+    lastIndex = regex.lastIndex
+  }
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', value: text.slice(lastIndex) })
+  }
+  return segments
+}
+
+function renderAnswerContent(
+  message: StoreChatMessage,
+  activeCiteId: number | null,
+  onCiteClick: (id: number) => void
+): ReactNode {
+  const segments = parseAnswer(message.content)
+  const nodes: ReactNode[] = []
+  let textBuffer = ''
+  let flushText = (key: string): void => {
+    if (textBuffer.trim()) {
+      nodes.push(
+        <div key={key} className="graphpet-chat-md">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{textBuffer}</ReactMarkdown>
+        </div>
+      )
+    }
+    textBuffer = ''
+  }
+  segments.forEach((seg, idx) => {
+    if (seg.type === 'text') {
+      textBuffer += seg.value
+    } else {
+      flushText(`t-${idx}`)
+      const hasSource =
+        Array.isArray(message.sources) &&
+        message.sources.some((s) => s.id === seg.id)
+      const isActive = activeCiteId === seg.id
+      nodes.push(
+        <span
+          key={`c-${idx}`}
+          className={`graphpet-chat-cite${isActive ? ' graphpet-chat-cite--active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCiteClick(seg.id)
+          }}
+          role={hasSource ? 'button' : undefined}
+          title={hasSource ? `查看来源 ${seg.id}` : undefined}
+        >
+          [{seg.id}]
+        </span>
+      )
+    }
+  })
+  flushText('t-end')
+  if (message.isStreaming) {
+    nodes.push(<span key="cursor" className="graphpet-chat-cursor" />)
+  }
+  return <>{nodes}</>
+}
+
+function MessageItem({
+  message,
+  activeCiteId,
+  onCiteClick,
+  embedded: _embedded
+}: {
+  message: StoreChatMessage
+  activeCiteId: number | null
+  onCiteClick: (id: number) => void
+  embedded?: boolean
+}): JSX.Element {
+  const [sourcesExpanded, setSourcesExpanded] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (
+      activeCiteId !== null &&
+      Array.isArray(message.sources) &&
+      message.sources.some((s) => s.id === activeCiteId)
+    ) {
+      setSourcesExpanded(true)
+    }
+  }, [activeCiteId, message.sources])
+
+  const isUser = message.role === 'user'
+  const rowClass = isUser
+    ? 'graphpet-chat-row graphpet-chat-row--user'
+    : 'graphpet-chat-row graphpet-chat-row--nito'
+
+  let bubbleClass = 'graphpet-chat-bubble '
+  if (isUser) {
+    bubbleClass += 'graphpet-chat-bubble--user'
+  } else if (message.isError) {
+    bubbleClass += 'graphpet-chat-bubble--error'
+  } else {
+    bubbleClass += 'graphpet-chat-bubble--nito'
+  }
+
+  if (message.isStreaming && !message.content) {
+    return (
+      <div className={rowClass}>
+        {!isUser && <div className="graphpet-chat-avatar"><NitoIcon size={28} /></div>}
+        <div className={bubbleClass}>
+          <span className="graphpet-chat-thinking">
+            <span />
+            <span />
+            <span />
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  const hasSources =
+    !isUser && !message.isError && Array.isArray(message.sources) && message.sources.length > 0
+
+  return (
+    <div className={rowClass}>
+      {!isUser && <div className="graphpet-chat-avatar"><NitoIcon size={28} /></div>}
+      <div className={bubbleClass}>
+        {isUser ? message.content : renderAnswerContent(message, activeCiteId, onCiteClick)}
+        {hasSources && (
+          <div className="graphpet-chat-sources">
+            <span
+              className="graphpet-chat-sources-toggle"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSourcesExpanded((v) => !v)
+              }}
+              role="button"
+            >
+              {sourcesExpanded ? '▾ 收起来源' : '▸ 查看来源'}
+              <span style={{ marginLeft: 2 }}>({message.sources!.length})</span>
+            </span>
+            {sourcesExpanded && (
+              <div>
+                {message.sources!.map((src: ChatSource) => (
+                  <div
+                    key={src.id}
+                    className={`graphpet-chat-source-item${
+                      activeCiteId === src.id ? ' graphpet-chat-source-item--highlight' : ''
+                    }`}
+                  >
+                    <span className="graphpet-chat-source-id">[{src.id}]</span>
+                    {src.entity && (
+                      <span className="graphpet-chat-source-entity">{src.entity}</span>
+                    )}
+                    {src.source_file && (
+                      <span className="graphpet-chat-source-file" title={src.source_file}>
+                        📄 {src.source_file.length > 20 ? src.source_file.slice(0, 17) + '...' : src.source_file}
+                      </span>
+                    )}
+                    {src.text}
+                    <span className="graphpet-chat-source-score">
+                      相关度 {Math.round(src.score * 100)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const QUICK_QUESTIONS = ['你好呀！', '你能做什么？', '讲个冷知识', '今天心情如何？']
+
+function generateMsgId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+}
+
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  if (isToday) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+export default function ChatPanel({
+  visible,
+  onClose,
+  onThinkingChange,
+  onEmotionChange,
+  searchMode,
+  onFeedFile,
+  embedded = false,
+  onNewChat
+}: ChatPanelProps): JSX.Element | null {
+  const {
+    conversations,
+    activeConversationId,
+    createConversation,
+    deleteConversation,
+    switchConversation,
+    addMessage,
+    updateMessage
+  } = useChatStore()
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [input, setInput] = useState<string>('')
+  const [activeCiteId, setActiveCiteId] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
+  const dragRef = useRef<{
+    dragging: boolean
+    startX: number
+    startY: number
+    startTop: number
+    startLeft: number
+    startWinX?: number
+    startWinY?: number
+  } | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputValueRef = useRef<string>(input)
+  inputValueRef.current = input
+  const loadingRef = useRef<boolean>(false)
+  const activeConversationIdRef = useRef<string | null>(activeConversationId)
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId
+  }, [activeConversationId])
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  const activeConversation = useMemo(() => {
+    return conversations.find(c => c.id === activeConversationId) || null
+  }, [conversations, activeConversationId])
+
+  const messages = activeConversation?.messages || []
+
+  const showFeedToast = (msg: string): void => {
+    setToast(msg)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500)
+  }
+
+  useEffect(() => {
+    injectStyle()
+  }, [])
+
+  useEffect(() => {
+    if (!visible || embedded) return
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [visible, onClose, embedded])
+
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+    })
+  }, [messages, loading, activeConversationId])
+
+  useEffect(() => {
+    if (visible) {
+      if (!embedded) setPanelPos(null)
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
+    } else {
+      setInput('')
+      setActiveCiteId(null)
+    }
+  }, [visible, embedded])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent): void => {
+      const drag = dragRef.current
+      if (!drag || !drag.dragging) return
+      if (embedded) {
+        const dx = e.screenX - drag.startX
+        const dy = e.screenY - drag.startY
+        if (drag.startWinX !== undefined && drag.startWinY !== undefined) {
+          window.api.windowMove(drag.startWinX + dx, drag.startWinY + dy)
+        }
+      } else {
+        const dx = e.clientX - drag.startX
+        const dy = e.clientY - drag.startY
+        setPanelPos({
+          top: Math.max(0, drag.startTop + dy),
+          left: Math.max(0, Math.min(window.innerWidth - 360, drag.startLeft + dx))
+        })
+      }
+    }
+    const handleMouseUp = (): void => {
+      if (dragRef.current) dragRef.current.dragging = false
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [embedded])
+
+  const handleHeaderMouseDown = (e: React.MouseEvent): void => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    if (target.closest('.graphpet-chat-icon-btn, .graphpet-chat-tool-btn')) return
+    if (embedded) {
+      dragRef.current = {
+        dragging: true,
+        startX: e.screenX,
+        startY: e.screenY,
+        startTop: 0,
+        startLeft: 0,
+        startWinX: window.screenX,
+        startWinY: window.screenY
+      }
+    } else {
+      const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect()
+      dragRef.current = {
+        dragging: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        startTop: panelPos ? panelPos.top : rect.top,
+        startLeft: panelPos ? panelPos.left : rect.left
+      }
+    }
+    e.preventDefault()
+  }
+
+  const setThinking = useCallback((thinking: boolean): void => {
+    try {
+      onThinkingChange?.(thinking)
+    } catch {
+    }
+  }, [onThinkingChange])
+
+  const handleSend = useCallback(async (): Promise<void> => {
+    const trimmed = inputValueRef.current.trim()
+    if (!trimmed || loadingRef.current) return
+    if (!activeConversationIdRef.current) {
+      const newId = createConversation()
+      activeConversationIdRef.current = newId
+    }
+
+    const convId = activeConversationIdRef.current
+    if (!convId) return
+
+    inputValueRef.current = ''
+    setInput('')
+    setError(null)
+    setLoading(true)
+    setThinking(true)
+
+    const userMsgId = generateMsgId()
+    const assistantMsgId = generateMsgId()
+
+    const userMsg: StoreChatMessage = {
+      id: userMsgId,
+      role: 'user',
+      content: trimmed,
+      timestamp: Date.now()
+    }
+
+    const pendingMsg: StoreChatMessage = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      isStreaming: true
+    }
+
+    addMessage(convId, userMsg)
+
+    const historyMessages = [...messages, userMsg].filter(m => !m.isStreaming && !m.isError)
+
+    const historyForApi: ChatHistoryMessage[] = historyMessages
+      .slice(-20)
+      .map(m => ({
+        role: m.role === 'assistant' ? 'nito' as const : 'user' as const,
+        content: m.content
+      }))
+
+    addMessage(convId, pendingMsg)
+
+    let accumulatedContent = ''
+    let finalSources: ChatSource[] = []
+    let finalSuccess = true
+    let finalMessage = ''
+
+    try {
+      for await (const event of chatStream(trimmed, searchMode, historyForApi)) {
+        if (activeConversationIdRef.current !== convId) {
+          break
+        }
+        switch (event.type) {
+          case 'status':
+            break
+          case 'chunk':
+            accumulatedContent += event.content
+            updateMessage(convId, assistantMsgId, {
+              content: accumulatedContent,
+              isStreaming: true
+            })
+            break
+          case 'sources':
+            finalSources = event.sources
+            updateMessage(convId, assistantMsgId, {
+              sources: event.sources
+            })
+            break
+          case 'error':
+            finalSuccess = false
+            finalMessage = event.message
+            break
+          case 'done':
+            if (!accumulatedContent && event.answer) {
+              accumulatedContent = event.answer
+            }
+            if (event.sources && event.sources.length > 0) {
+              finalSources = event.sources
+            }
+            finalSuccess = true
+            // 驱动 Live2D 表情
+            if (event.emotion) {
+              try { onEmotionChange?.(event.emotion) } catch { /* ignore */ }
+            }
+            break
+        }
+      }
+
+      if (activeConversationIdRef.current === convId) {
+        if (finalSuccess && accumulatedContent) {
+          updateMessage(convId, assistantMsgId, {
+            content: accumulatedContent || (finalSuccess ? '' : finalMessage || '回答失败'),
+            sources: finalSources.length > 0 ? finalSources : undefined,
+            isError: !finalSuccess,
+            isStreaming: false
+          })
+          playMessageSound()
+        } else if (!finalSuccess) {
+          updateMessage(convId, assistantMsgId, {
+            content: finalMessage || '回答失败',
+            isError: true,
+            isStreaming: false
+          })
+          setError(finalMessage || '回答失败')
+          playErrorSound()
+        } else {
+          updateMessage(convId, assistantMsgId, {
+            isStreaming: false
+          })
+        }
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      if (activeConversationIdRef.current === convId) {
+        updateMessage(convId, assistantMsgId, {
+          content: `出错了：${errMsg}`,
+          isError: true,
+          isStreaming: false
+        })
+        setError(errMsg)
+        playErrorSound()
+      }
+    } finally {
+      if (activeConversationIdRef.current === convId) {
+        setLoading(false)
+      }
+      setThinking(false)
+    }
+  }, [messages, addMessage, updateMessage, createConversation, searchMode, setThinking])
+
+  const handleQuickQuestion = (q: string): void => {
+    if (loadingRef.current) return
+    inputValueRef.current = q
+    setInput(q)
+    void handleSend()
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      void handleSend()
+    }
+  }
+
+  const handleCiteClick = (id: number): void => {
+    setActiveCiteId((prev) => (prev === id ? null : id))
+  }
+
+  const handleNewChat = (): void => {
+    createConversation()
+    setActiveCiteId(null)
+    inputValueRef.current = ''
+    setInput('')
+    setError(null)
+    onNewChat?.()
+  }
+
+  const handleDeleteConversation = (e: React.MouseEvent, id: string): void => {
+    e.stopPropagation()
+    if (window.confirm('确定要删除这个对话吗？')) {
+      deleteConversation(id)
+    }
+  }
+
+  const handleSelectConversation = (id: string): void => {
+    if (loading) return
+    switchConversation(id)
+    setActiveCiteId(null)
+    setError(null)
+  }
+
+  const handleUploadClick = (): void => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const files = e.target.files
+    if (!files || files.length === 0 || !onFeedFile) return
+    const file = files[0]
+    const filePath = (file as File & { path?: string }).path
+    if (filePath) {
+      try {
+        await onFeedFile(filePath)
+        showFeedToast(`已喂给Nito：${file.name}`)
+      } catch {
+      }
+    }
+    e.target.value = ''
+  }
+
+  const handleDragOver = (e: React.DragEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isDragging) setIsDragging(true)
+  }
+  const handleDragLeave = (e: React.DragEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget === e.target) setIsDragging(false)
+  }
+  const handleDrop = (e: React.DragEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    if (!onFeedFile) return
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      const filePath = (file as File & { path?: string }).path
+      if (filePath) {
+        void Promise.resolve(onFeedFile(filePath)).then(() => {
+          showFeedToast(`已喂给Nito：${file.name}`)
+        })
+      }
+    }
+  }
+
+  const toggleSidebar = (): void => {
+    setSidebarCollapsed(v => !v)
+  }
+
+  const getConvPreview = (conv: Conversation): string => {
+    const lastMsg = conv.messages[conv.messages.length - 1]
+    if (!lastMsg) return formatTime(conv.updatedAt)
+    const preview = lastMsg.content.slice(0, 20)
+    return preview || formatTime(lastMsg.timestamp)
+  }
+
+  const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading])
+
+  if (!visible && !embedded) return null
+  if (!visible) return null
+
+  const panelStyle: CSSProperties = panelPos && !embedded
+    ? { top: panelPos.top, left: panelPos.left, right: 'auto', transform: 'none' }
+    : {}
+
+  const panelClassName = `graphpet-chat-panel${embedded ? ' graphpet-chat-panel--embedded' : ''}`
+
+  return (
+    <div
+      className={panelClassName}
+      style={panelStyle}
+      role="dialog"
+      aria-modal={embedded}
+      aria-label="和 Nito 聊天"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="gp-drop-overlay">
+          <div className="gp-drop-overlay-inner">
+            <div className="gp-drop-overlay-icon"><NitoIcon size={80} /></div>
+            <div className="gp-drop-overlay-text">松开喂给 Nito</div>
+          </div>
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+        accept=".txt,.md,.pdf,.docx,.html,.htm,.csv,.json,.py,.js,.ts,.tsx,.jsx,.java,.c,.cpp,.go,.rs,.yml,.yaml,.xml,.log"
+      />
+
+      <aside className={`graphpet-chat-sidebar${sidebarCollapsed ? ' graphpet-chat-sidebar--collapsed' : ''}`}>
+        <div className="graphpet-chat-sidebar-header">
+          <button
+            type="button"
+            className="graphpet-chat-new-btn"
+            onClick={handleNewChat}
+            title="新建对话"
+          >
+            <Plus size={16} /> 新建对话
+          </button>
+          <button
+            type="button"
+            className="graphpet-chat-collapse-btn"
+            onClick={toggleSidebar}
+            title="收起侧边栏"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        </div>
+        <div className="graphpet-chat-conv-list">
+          {conversations.map((conv) => (
+            <div
+              key={conv.id}
+              className={`graphpet-chat-conv-item${conv.id === activeConversationId ? ' graphpet-chat-conv-item--active' : ''}`}
+              onClick={() => handleSelectConversation(conv.id)}
+            >
+              <div className="graphpet-chat-conv-info">
+                <div className="graphpet-chat-conv-title">{conv.title}</div>
+                <div className="graphpet-chat-conv-preview">{getConvPreview(conv)}</div>
+              </div>
+              <button
+                type="button"
+                className="graphpet-chat-conv-delete"
+                onClick={(e) => handleDeleteConversation(e, conv.id)}
+                title="删除对话"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <div className="graphpet-chat-main">
+        {sidebarCollapsed && (
+          <button
+            type="button"
+            className="graphpet-chat-expand-btn"
+            onClick={toggleSidebar}
+            title="展开对话历史"
+          >
+            <ChevronRight size={18} />
+          </button>
+        )}
+
+        <div className="graphpet-chat-header" onMouseDown={handleHeaderMouseDown}>
+          <div className="graphpet-chat-title">
+            <span className="graphpet-chat-title-icon"><MessageCircle size={18} /></span>
+            <span>{activeConversation?.title || '和 Nito 聊天'}</span>
+          </div>
+          <div className="graphpet-chat-header-actions">
+            <button
+              type="button"
+              className="graphpet-chat-icon-btn"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? '展开对话历史' : '收起对话历史'}
+            >
+              <PanelLeft size={16} />
+            </button>
+            {embedded ? (
+              <>
+                <button
+                  type="button"
+                  className="graphpet-chat-tool-btn"
+                  onClick={handleUploadClick}
+                  title="上传文件喂给Nito"
+                >
+                  <Paperclip size={14} /> 喂文件
+                </button>
+                <button
+                  type="button"
+                  className="graphpet-chat-tool-btn"
+                  onClick={handleNewChat}
+                  title="开始新对话"
+                >
+                  <Plus size={14} /> 新对话
+                </button>
+                <button
+                  type="button"
+                  className="graphpet-chat-icon-btn"
+                  onClick={() => window.api.minimizeChat()}
+                  aria-label="最小化"
+                  title="最小化"
+                >
+                  <Minus size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="graphpet-chat-icon-btn graphpet-chat-icon-btn--close"
+                  onClick={onClose}
+                  aria-label="关闭"
+                  title="关闭"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="graphpet-chat-icon-btn"
+                  onClick={handleUploadClick}
+                  aria-label="上传文件喂食"
+                  title="上传文件喂给Nito"
+                >
+                  <Paperclip size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="graphpet-chat-icon-btn"
+                  onClick={handleNewChat}
+                  aria-label="新建对话"
+                  title="新建对话"
+                >
+                  <Plus size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="graphpet-chat-icon-btn graphpet-chat-icon-btn--close"
+                  onClick={onClose}
+                  aria-label="关闭"
+                  title="关闭"
+                >
+                  <X size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {error && <div className="graphpet-chat-error-bar">{error}</div>}
+        {toast && <div className="graphpet-chat-toast">{toast}</div>}
+
+        <div className="graphpet-chat-messages" ref={messagesRef}>
+          {messages.length === 0 ? (
+            <div className="graphpet-chat-empty">
+              <span className="graphpet-chat-empty-emoji"><NitoIcon size={64} /></span>
+              嗨～我是 Nito，你的知识小宠物！
+              <br />
+              <span className="graphpet-chat-empty-subtitle">
+                {embedded ? '和我聊聊天，或者喂我吃点文件吧~' : '有什么想问我的吗？'}
+              </span>
+              {embedded && (
+                <div className="graphpet-chat-quick-actions">
+                  {QUICK_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="graphpet-chat-quick-btn"
+                      onClick={() => handleQuickQuestion(q)}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            messages.map((m) => (
+              <MessageItem
+                key={m.id}
+                message={m}
+                activeCiteId={activeCiteId}
+                onCiteClick={handleCiteClick}
+                embedded={embedded}
+              />
+            ))
+          )}
+        </div>
+
+        <div className="graphpet-chat-input-area">
+          <textarea
+            ref={inputRef}
+            className="graphpet-chat-input"
+            value={input}
+            placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+            rows={1}
+            disabled={loading}
+            spellCheck={false}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          <button
+            type="button"
+            className="graphpet-chat-send"
+            onClick={() => void handleSend()}
+            disabled={!canSend}
+          >
+            {loading ? '思考中...' : <><Send size={14} /> 发送</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

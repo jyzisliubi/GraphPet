@@ -1,0 +1,25 @@
+# GraphPet 后端核心依赖
+# ==========================================
+# 知识图谱与文档解析采用 Docling + LightRAG（全换方案）
+#   - lightrag-hku：港大 HKU LightRAG，原生增量插入 + 图谱+向量双层检索
+#   - docling：IBM 文档解析（PDF / Word / 网页 → Markdown），支持复杂布局/表格
+#   - ollama：LightRAG 的 LLM 后端原生 binding
+#   - sentence-transformers：本地 embedding（BGE-small-zh），比 Ollama embedding 更稳定
+#   - networkx：读取 LightRAG 的 graphml 图谱文件做统计 / 三元组列表
+
+fastapi
+uvicorn[standard]
+pydantic>=2.0
+
+# 知识图谱 + 文档解析
+lightrag-hku>=1.5.0
+docling>=2.0.0
+ollama>=0.4.0
+networkx>=3.0
+
+# 本地 Embedding（BAAI/bge-small-zh-v1.5，512维）
+# 首次运行会从 HuggingFace 下载模型（约 100MB），之后走本地缓存
+sentence-transformers>=2.7.0
+
+# PDF 页数估算（_estimate_pages 用，可选）
+PyPDF2>=3.0.0

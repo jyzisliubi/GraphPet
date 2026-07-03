@@ -1,0 +1,232 @@
+import { useEffect, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+
+// 气泡对话组件（对应 Task 7）
+//
+// 用于在宠物头顶/底部显示气泡，展示说话内容（主动对话、操作反馈、消化进度）。
+// 设计要点：
+// - 定位在窗口内顶部居中（宠物头顶上方），带小三角箭头指向宠物
+// - 毛玻璃暗色背景 + 圆角 + 阴影
+// - 淡入淡出动画（opacity 200ms）
+// - 长内容可滚动（max-height 200px）
+// - 支持简单 markdown：**粗体** 与换行（正则替换，不引入 markdown 库）
+// - 点击气泡关闭（onClose）
+// - pointer-events: auto（可点击），z-index 100（在 DragRegion 之上）
+//
+// 自动消失定时由 store 层（bubbleStore）管理，组件本身不重复设置定时器，
+// 仅根据 visible props 控制淡入淡出与 DOM 挂载/卸载。
+
+/** 气泡组件 Props */
+export interface BubbleProps {
+  /** 气泡内容（支持 **粗体** 与换行） */
+  message: string
+  /** 是否显示 */
+  visible: boolean
+  /** 自动消失毫秒数，0=不自动消失，默认 4000（由 store 层管理定时） */
+  duration?: number
+  /** 关闭回调（点击气泡时触发） */
+  onClose?: () => void
+  /** 气泡位置，默认 top（宠物头顶上方） */
+  position?: 'top' | 'bottom'
+  /** 动态顶部偏移（来自 Live2D 模型实际头顶位置，优先级高于硬编码） */
+  anchorTop?: number
+}
+
+/** 气泡样式 CSS（含 ::before 三角箭头 + 淡入淡出 transition） */
+const BUBBLE_CSS = `
+.graphpet-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(24, 24, 27, 0.92);
+  color: #e4e4e7;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
+  max-width: 280px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+  z-index: 100;
+  word-break: break-word;
+  white-space: pre-wrap;
+  cursor: default;
+  user-select: none;
+  transition: opacity 200ms ease;
+  animation: graphpet-bounce-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.graphpet-bubble--top { /* top 由内联样式动态控制 */ }
+.graphpet-bubble--bottom { bottom: 20px; }
+.graphpet-bubble--top::before {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(24, 24, 27, 0.92);
+}
+.graphpet-bubble--top::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid rgba(255, 255, 255, 0.08);
+  z-index: -1;
+}
+.graphpet-bubble--bottom::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(24, 24, 27, 0.92);
+}
+.graphpet-bubble--visible { opacity: 1; }
+.graphpet-bubble--hidden { opacity: 0; pointer-events: none; }
+.graphpet-bubble strong {
+  color: #818cf8;
+  font-weight: 600;
+}
+`
+
+const STYLE_ELEMENT_ID = 'graphpet-bubble-style'
+
+/** 注入气泡样式到 document.head（全局仅注入一次） */
+function injectBubbleStyle(): void {
+  if (typeof document === 'undefined') return
+  if (document.getElementById(STYLE_ELEMENT_ID)) return
+  const styleEl = document.createElement('style')
+  styleEl.id = STYLE_ELEMENT_ID
+  styleEl.textContent = BUBBLE_CSS
+  document.head.appendChild(styleEl)
+}
+
+/**
+ * 简单 markdown 渲染：支持 **粗体** 与换行
+ *
+ * 不引入 markdown 库，用正则分割 + React 元素渲染，
+ * 避免使用 dangerouslySetInnerHTML 带来的 XSS 风险。
+ */
+function renderBubbleContent(text: string): ReactNode[] {
+  const lines = text.split('\n')
+  return lines.map((line, lineIdx) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g)
+    const nodes = parts.map((part, partIdx) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return <strong key={`b-${lineIdx}-${partIdx}`}>{part.slice(2, -2)}</strong>
+      }
+      return <span key={`t-${lineIdx}-${partIdx}`}>{part}</span>
+    })
+    return (
+      <span key={`l-${lineIdx}`}>
+        {nodes}
+        {lineIdx < lines.length - 1 && <br />}
+      </span>
+    )
+  })
+}
+
+/**
+ * 气泡组件
+ *
+ * visible=true 时挂载并淡入；visible=false 时保持挂载播放淡出动画，
+ * transition 结束后才卸载（保证淡出动画可见）。
+ */
+export default function Bubble({
+  message,
+  visible,
+  onClose,
+  position = 'top',
+  anchorTop
+}: BubbleProps): JSX.Element | null {
+  const [shouldRender, setShouldRender] = useState<boolean>(false)
+  const [isVisible, setIsVisible] = useState<boolean>(false)
+  const [bounceComplete, setBounceComplete] = useState<boolean>(false)
+
+  useEffect(() => {
+    injectBubbleStyle()
+  }, [])
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true)
+      setBounceComplete(false)
+      const raf = requestAnimationFrame(() => {
+        setIsVisible(true)
+      })
+      return () => cancelAnimationFrame(raf)
+    }
+    setIsVisible(false)
+  }, [visible])
+
+  if (!shouldRender || !message) {
+    return null
+  }
+
+  const positionClass =
+    position === 'bottom' ? 'graphpet-bubble--bottom' : 'graphpet-bubble--top'
+  const visibilityClass = isVisible ? 'graphpet-bubble--visible' : 'graphpet-bubble--hidden'
+
+  const handleTransitionEnd = (): void => {
+    if (!visible) {
+      setShouldRender(false)
+    }
+  }
+
+  const handleAnimationEnd = (): void => {
+    setBounceComplete(true)
+  }
+
+  const handleClick = (): void => {
+    onClose?.()
+  }
+
+  const bubbleStyle: CSSProperties = bounceComplete
+    ? { animation: 'none' }
+    : {}
+
+  if (position === 'bottom') {
+    Object.assign(bubbleStyle, { bottom: '20px' })
+  } else if (anchorTop != null && anchorTop > 0) {
+    // 动态定位：三角箭头在气泡底边向下 6px，让箭头尖端距头顶约 2px
+    // 气泡底边应在头顶上方 8px → bottom = VIEW_HEIGHT - (anchorTop - 8)
+    const VIEW_HEIGHT = 580
+    Object.assign(bubbleStyle, {
+      top: 'auto',
+      bottom: `${VIEW_HEIGHT - anchorTop + 8}px`
+    })
+  } else {
+    Object.assign(bubbleStyle, { top: '230px' })
+  }
+
+  return (
+    <div
+      className={`graphpet-bubble ${positionClass} ${visibilityClass}`}
+      style={bubbleStyle}
+      onClick={handleClick}
+      onTransitionEnd={handleTransitionEnd}
+      onAnimationEnd={handleAnimationEnd}
+      role="button"
+      tabIndex={0}
+    >
+      {renderBubbleContent(message)}
+    </div>
+  )
+}

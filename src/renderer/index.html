@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; media-src 'self' file: blob:; connect-src 'self' http://127.0.0.1:8765 ws://localhost:5173 ws://localhost:5174 file: blob: data:;"
+    />
+    <title>GraphPet</title>
+    <style>
+      html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+      /* P1-B：首屏 loading overlay，默认隐藏，仅宠物模式通过内联脚本显示 */
+      #graphpet-splash {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: transparent;
+        z-index: 99999;
+        font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
+      }
+      #graphpet-splash.visible {
+        display: flex;
+      }
+      #graphpet-splash.fade-out {
+        opacity: 0;
+      }
+      /* 呼吸动画：Nito 唤醒中 */
+      #graphpet-splash .splash-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
+        opacity: 0.85;
+        animation: splash-breathe 1.8s ease-in-out infinite;
+        box-shadow: 0 0 24px rgba(99, 102, 241, 0.4);
+      }
+      #graphpet-splash .splash-text {
+        font-size: 13px;
+        color: #e5e7eb;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+        letter-spacing: 1px;
+      }
+      @keyframes splash-breathe {
+        0%, 100% { transform: scale(0.9); opacity: 0.6; }
+        50% { transform: scale(1.1); opacity: 1; }
+      }
+    </style>
+    <script>
+      // 同步脚本：在 React/任何模块加载前，判断当前模式并给 body 添加 class
+      // - 宠物桌面模式（默认）：body.gp-mode-desktop，背景透明
+      // - 面板/聊天窗口模式：body.gp-mode-panel，使用暗色背景
+      (function(){
+        try {
+          var h = window.location.hash || '';
+          var isPanel = h.indexOf('#/panel') === 0 || h.indexOf('#/chat-window') === 0;
+          if (isPanel) {
+            document.body.classList.add('gp-mode-panel');
+          } else {
+            document.body.classList.add('gp-mode-desktop');
+            var s = document.getElementById('graphpet-splash');
+            if (s) s.classList.add('visible');
+          }
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- P1-B：首屏 loading overlay（仅宠物模式显示，React 挂载后会移除） -->
+    <div id="graphpet-splash">
+      <div class="splash-icon"></div>
+      <div class="splash-text">正在唤醒 Nito…</div>
+    </div>
+    <!-- Live2D Cubism 2 Core 运行时（pixi-live2d-display/cubism2 依赖，用于 Nito 等经典模型） -->
+    <script src="/live2d.min.js"></script>
+    <!-- Live2D Cubism 4 Core 运行时（pixi-live2d-display/cubism4 依赖） -->
+    <script src="/live2dcubismcore.min.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

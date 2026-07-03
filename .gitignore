@@ -1,0 +1,66 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 构建产物
+out/
+dist/
+release/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+python/vendor/
+
+# 运行时数据（知识图谱 / 状态 / 文件三元组）
+graphpet_kg/
+graphpet_data/
+file_triples/
+graphpet_state.json
+python/graphpet_kg/
+python/graphpet_data/
+python/file_triples/
+python/kv_store_*.json
+python/graphpet_state.json
+
+# LightRAG 缓存与索引
+index/
+.cache/
+python/index/
+python/.cache/
+
+# Electron 开发缓存
+.electron-data/
+electron-builder/
+*.log
+
+# 测试/临时文件
+test_data/
+test_files/
+test_*.py
+test_*.txt
+stability_*.txt
+fix_*.py
+
+# 工具与IDE
+.superpowers/
+.trae/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 系统
+*.swp
+*.swo
+*~
