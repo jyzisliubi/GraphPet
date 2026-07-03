@@ -15,45 +15,47 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
-    "pollinations_openai": {
-        "name": "Pollinations (OpenAI)",
+    # Primary: POST endpoint (supports long RAG prompts, OpenAI-compatible)
+    "pollinations_post_openai": {
+        "name": "Pollinations POST (OpenAI)",
+        "type": "pollinations_post",
+        "post_url": "https://text.pollinations.ai/openai",
+        "model": "openai",
+        "requires_key": False,
+        "priority": 1,
+        "description": "OpenAI GPT, POST (supports long prompts)",
+        "extra_headers": {
+            "Referer": "https://pollinations.ai/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        "timeout": 120,
+    },
+    # Fallback: GET endpoint (short prompts only, different models for diversity)
+    "pollinations_get_openai": {
+        "name": "Pollinations GET (OpenAI)",
         "type": "simple_get",
         "url_template": "https://text.pollinations.ai/{prompt}",
         "model": "openai",
         "requires_key": False,
-        "priority": 1,
-        "description": "OpenAI GPT model",
+        "priority": 2,
+        "description": "OpenAI GPT, GET (short prompts)",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
         "timeout": 60,
     },
-    "pollinations_mistral": {
-        "name": "Pollinations (Mistral)",
+    "pollinations_get_mistral": {
+        "name": "Pollinations GET (Mistral)",
         "type": "simple_get",
         "url_template": "https://text.pollinations.ai/{prompt}",
         "model": "mistral",
         "requires_key": False,
-        "priority": 2,
-        "description": "Mistral model, fast",
-        "extra_headers": {
-            "Referer": "https://pollinations.ai/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        "timeout": 60,
-    },
-    "pollinations_qwen": {
-        "name": "Pollinations (Qwen)",
-        "type": "simple_get",
-        "url_template": "https://text.pollinations.ai/{prompt}",
-        "model": "qwen",
-        "requires_key": False,
         "priority": 3,
-        "description": "Qwen, Chinese optimized",
+        "description": "Mistral, GET (short prompts)",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
         "timeout": 60,
     },
@@ -141,7 +143,7 @@ class FreeLLMRouter:
 
     def _try_provider(
         self, key: str, provider: Dict[str, Any],
-        messages: List[Dict[str, str]], temperature: float, max_tokens: int,
+        messages: List[Dict[str, str]], temperature: float, max_tokens: int, **kwargs,
     ) -> Tuple[str, float]:
         self._throttle()
         provider_type = provider.get("type", "openai")
@@ -152,7 +154,42 @@ class FreeLLMRouter:
         }
         headers.update(provider.get("extra_headers", {}))
 
-        if provider_type == "simple_get":
+        if provider_type == "pollinations_post":
+            url = provider["post_url"]
+            # Append ?json=true to URL when JSON mode is requested (LightRAG extraction)
+            _json_mode = kwargs.get("json_mode") or any("JSON" in m.get("content", "") or "json" in m.get("content", "").lower()[:200] for m in messages if m["role"] == "system")
+            if _json_mode:
+                url = url + ("&" if "?" in url else "?") + "json=true"
+            headers["Content-Type"] = "application/json"
+            body = {
+                "model": provider["model"],
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": False,
+                "seed": int(time.time()) % 1000000,
+            }
+            data = json.dumps(body).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                elapsed = time.time() - start
+                resp_data = json.loads(raw)
+                choices = resp_data.get("choices") or []
+                if not choices:
+                    raise RuntimeError(f"no choices in response: {raw[:200]}")
+                msg = choices[0].get("message") or {}
+                content_rcv = msg.get("content")
+                if not content_rcv:
+                    reasoning = msg.get("reasoning") or ""
+                    if reasoning:
+                        content_rcv = reasoning
+                if content_rcv:
+                    self._record_success(key, elapsed)
+                    return content_rcv, elapsed
+                raise RuntimeError(f"empty content, message keys: {list(msg.keys())}")
+
+        elif provider_type == "simple_get":
             system_parts = [m["content"] for m in messages if m["role"] == "system"]
             system_prompt = "\n".join(system_parts) if system_parts else None
             user_parts = []
@@ -222,16 +259,12 @@ class FreeLLMRouter:
             except Exception:
                 pass
 
-    def chat(self, messages, temperature=0.7, max_tokens=1024, force_post=False):
+    def chat(self, messages, temperature=0.7, max_tokens=1024, force_post=False, **kwargs):
         self._maybe_recover_one()
         providers = self._get_available_providers()
-        if force_post:
-            providers = [(k, p) for k, p in providers if p.get("type") != "simple_get"]
         if not providers:
             self._attempt_recovery()
             providers = self._get_available_providers()
-            if force_post:
-                providers = [(k, p) for k, p in providers if p.get("type") != "simple_get"]
         if not providers:
             raise RuntimeError("没有可用的免费LLM服务，请检查网络或在设置中配置API Key。")
 
@@ -239,7 +272,7 @@ class FreeLLMRouter:
         for key, provider in providers:
             for retry in range(self._max_retries + 1):
                 try:
-                    content, rt = self._try_provider(key, provider, messages, temperature, max_tokens)
+                    content, rt = self._try_provider(key, provider, messages, temperature, max_tokens, **kwargs)
                     return content
                 except urllib.error.HTTPError as e:
                     last_error = e
@@ -286,7 +319,15 @@ def get_router():
 
 def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
     messages = []
-    if system_prompt:
+    json_mode = kwargs.get("json_mode", False)
+    if json_mode:
+        # For LightRAG extraction: prepend strict JSON instruction
+        json_instruction = "IMPORTANT: You must respond with ONLY valid JSON, no markdown, no explanation, no code fences. The response must be a JSON object."
+        if system_prompt:
+            messages.append({"role": "system", "content": json_instruction + "\n\n" + system_prompt})
+        else:
+            messages.append({"role": "system", "content": json_instruction})
+    elif system_prompt:
         messages.append({"role": "system", "content": system_prompt + "\n\n" + CHINESE_SYSTEM_PROMPT})
     else:
         messages.append({"role": "system", "content": CHINESE_SYSTEM_PROMPT})
@@ -299,12 +340,74 @@ def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwarg
     messages.append({"role": "user", "content": prompt})
     temperature = kwargs.get("temperature", 0.7)
     max_tokens = kwargs.get("max_tokens", 2048)
-    return get_router().chat(messages, temperature=temperature, max_tokens=max_tokens)
+    result = get_router().chat(messages, temperature=temperature, max_tokens=max_tokens)
+    # Post-process: if json_mode requested, ensure result is valid JSON dict
+    if kwargs.get("json_mode"):
+        import json as _json
+        import re as _re
+        # Try direct parse
+        try:
+            parsed = _json.loads(result.strip())
+            if isinstance(parsed, dict):
+                return result  # Already valid JSON dict
+        except Exception:
+            pass
+        # Try json_repair if available
+        try:
+            from json_repair import repair_json
+            repaired = repair_json(result, return_objects=False)
+            parsed = _json.loads(repaired.strip())
+            if isinstance(parsed, dict):
+                return repaired
+        except Exception:
+            pass
+        # Try regex extract JSON block
+        match = _re.search(r"\{[\s\S]*\}", result)
+        if match:
+            try:
+                parsed = _json.loads(match.group(0))
+                if isinstance(parsed, dict):
+                    return match.group(0)
+            except Exception:
+                pass
+        # Parse markdown entity list (Pollinations ignores JSON mode, returns markdown)
+        entities = []
+        relationships = []
+        for line in result.split("\n"):
+            line = line.strip()
+            if not line.startswith(("-", "*")):
+                continue
+            content = line.lstrip("-*").strip()
+            if ":" in content:
+                parts = content.split(":", 1)
+                name = parts[0].strip().strip("*").strip()
+                rest = parts[1].strip()
+                if "." in rest:
+                    sub = rest.split(".", 1)
+                    etype = sub[0].strip()
+                    desc = sub[1].strip()
+                else:
+                    etype = rest
+                    desc = ""
+                etype = _re.sub(r"^Type:\s*", "", etype, flags=_re.IGNORECASE)
+                etype = etype.split("?")[0].strip().split(",")[0].strip()
+                if len(name) >= 2 and etype and len(etype) <= 50:
+                    entities.append({
+                        "name": name,
+                        "type": etype.lower(),
+                        "description": (desc[:200] if desc else name),
+                    })
+        if entities:
+            return _json.dumps({"entities": entities, "relationships": relationships}, ensure_ascii=False)
+        # Fallback: empty JSON in LightRAG 1.5 format (entities/relationships, NOT high_level_*)
+        return '{"entities": [], "relationships": []}'
+    return result
 
 
 async def free_llm_model_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
     import asyncio
     loop = asyncio.get_event_loop()
+    kwargs["json_mode"] = True
     return await loop.run_in_executor(
         None,
         lambda: free_llm_complete(prompt, system_prompt=system_prompt,
