@@ -10,6 +10,8 @@
 [![GitHub Forks](https://img.shields.io/github/forks/jyzisliubi/GraphPet?style=social)](https://github.com/jyzisliubi/GraphPet/network/members)
 [![GitHub Issues](https://img.shields.io/github/issues/jyzisliubi/GraphPet)](https://github.com/jyzisliubi/GraphPet/issues)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build](https://github.com/jyzisliubi/GraphPet/actions/workflows/release.yml/badge.svg)](https://github.com/jyzisliubi/GraphPet/actions)
+[![Release](https://img.shields.io/github/v/release/jyzisliubi/GraphPet?color=blue)](https://github.com/jyzisliubi/GraphPet/releases)
 
 [![Electron](https://img.shields.io/badge/Electron-31+-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
