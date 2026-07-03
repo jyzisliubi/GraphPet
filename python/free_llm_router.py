@@ -20,7 +20,7 @@ FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "type": "simple_get",
         "url_template": "https://text.pollinations.ai/{prompt}",
         "requires_key": False,
-        "priority": 1,
+        "priority": 99,
         "description": "Pollinations简单GET接口",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
@@ -207,12 +207,17 @@ class FreeLLMRouter:
             except Exception:
                 pass
 
-    def chat(self, messages, temperature=0.7, max_tokens=1024):
+    def chat(self, messages, temperature=0.7, max_tokens=1024, force_post=False):
         self._maybe_recover_one()
         providers = self._get_available_providers()
+        # 长prompt跳过simple_get（GET URL会截断，导致RAG上下文丢失）
+        if force_post:
+            providers = [(k, p) for k, p in providers if p.get("type") != "simple_get"]
         if not providers:
             self._attempt_recovery()
             providers = self._get_available_providers()
+            if force_post:
+                providers = [(k, p) for k, p in providers if p.get("type") != "simple_get"]
         if not providers:
             raise RuntimeError("没有可用的免费LLM服务，请检查网络或在设置中配置API Key。")
 
@@ -266,6 +271,9 @@ def get_router():
 
 
 def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
+    # RAG prompts with retrieved context can be very long; skip GET provider to avoid URL truncation
+    total_len = len(prompt or "") + sum(len(m.get("content", "")) for m in (history_messages or [])) + len(system_prompt or "")
+    force_post = total_len > 800
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt + "\n\n" + CHINESE_SYSTEM_PROMPT})
@@ -280,7 +288,7 @@ def free_llm_complete(prompt, system_prompt=None, history_messages=None, **kwarg
     messages.append({"role": "user", "content": prompt})
     temperature = kwargs.get("temperature", 0.7)
     max_tokens = kwargs.get("max_tokens", 2048)
-    return get_router().chat(messages, temperature=temperature, max_tokens=max_tokens)
+    return get_router().chat(messages, temperature=temperature, max_tokens=max_tokens, force_post=force_post)
 
 
 async def free_llm_model_complete(prompt, system_prompt=None, history_messages=None, **kwargs):
