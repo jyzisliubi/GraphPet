@@ -15,14 +15,29 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
-    # Primary: POST endpoint (supports long RAG prompts, OpenAI-compatible)
+    # Primary: Mistral via POST (no reasoning field pollution, better JSON adherence)
+    "pollinations_post_mistral": {
+        "name": "Pollinations POST (Mistral)",
+        "type": "pollinations_post",
+        "post_url": "https://text.pollinations.ai/openai",
+        "model": "mistral",
+        "requires_key": False,
+        "priority": 1,
+        "description": "Mistral, POST (no reasoning pollution, supports long prompts)",
+        "extra_headers": {
+            "Referer": "https://pollinations.ai/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        "timeout": 120,
+    },
+    # Fallback: OpenAI via POST (has reasoning field, but stronger Chinese)
     "pollinations_post_openai": {
         "name": "Pollinations POST (OpenAI)",
         "type": "pollinations_post",
         "post_url": "https://text.pollinations.ai/openai",
         "model": "openai",
         "requires_key": False,
-        "priority": 1,
+        "priority": 2,
         "description": "OpenAI GPT, POST (supports long prompts)",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
@@ -30,14 +45,14 @@ FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
         },
         "timeout": 120,
     },
-    # Fallback: GET endpoint (short prompts only, different models for diversity)
+    # Fallback: GET endpoint (short prompts only)
     "pollinations_get_openai": {
         "name": "Pollinations GET (OpenAI)",
         "type": "simple_get",
         "url_template": "https://text.pollinations.ai/{prompt}",
         "model": "openai",
         "requires_key": False,
-        "priority": 2,
+        "priority": 3,
         "description": "OpenAI GPT, GET (short prompts)",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",
@@ -51,7 +66,7 @@ FREE_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "url_template": "https://text.pollinations.ai/{prompt}",
         "model": "mistral",
         "requires_key": False,
-        "priority": 3,
+        "priority": 4,
         "description": "Mistral, GET (short prompts)",
         "extra_headers": {
             "Referer": "https://pollinations.ai/",

@@ -44,13 +44,24 @@ from graphpet_core import knowledge_share as _knowledge_share  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时后台同步智力等级和预检查LLM连通性，不阻塞服务启动。"""
+    """应用生命周期：启动时后台同步智力等级和预检查LLM连通性，不阻塞服务启动。
+
+    BUG-3 修复：在后台线程预热 sentence-transformers 模型，避免第一次 chat 调用时
+    C 扩展加载导致 segfault（Windows 0xC0000005）。预热失败不影响主流程，
+    实际调用时会再次尝试加载。
+    """
     def _bg_init():
         try:
             synced = _growth.sync_intelligence_from_memory()
             print(f"[GraphPet] 后台同步智力等级: {synced}", flush=True)
         except Exception as e:
             print(f"[GraphPet] 后台同步智力等级失败: {e}", file=_sys.stderr, flush=True)
+        # 预热 sentence-transformers 模型（避免首次调用 segfault）
+        try:
+            _bridge.warmup_embedding()
+            print("[GraphPet] ST 模型预热完成", flush=True)
+        except Exception as e:
+            print(f"[GraphPet] ST 模型预热失败(将延迟到首次调用): {e}", file=_sys.stderr, flush=True)
         _check_llm_available()
     threading.Thread(target=_bg_init, daemon=True).start()
     print("[GraphPet] 后端服务启动中...", flush=True)
@@ -531,9 +542,10 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "graphpet-backend",
-        "version": "0.3.0",
+        "version": "0.3.1",
         # P1-D：LLM 可用性（None=未检查/True=可用/False=上次失败）
-        "llm_available": _llm_available,
+        # 显式转 bool 避免 None 被序列化成空字符串导致前端无法判断
+        "llm_available": bool(_llm_available) if _llm_available is not None else False,
         # 当前 LLM provider（前端据此判断是否需要 Ollama）
         "provider": _bridge.get_llm_config().get("provider", "ollama"),
     }

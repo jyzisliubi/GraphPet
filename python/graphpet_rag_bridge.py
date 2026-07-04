@@ -302,6 +302,21 @@ async def _st_embed_async(texts):
     return await loop.run_in_executor(None, lambda: model.encode(texts, normalize_embeddings=True, show_progress_bar=False))
 
 
+def warmup_embedding():
+    """预热 sentence-transformers 模型 + LightRAG 初始化。
+
+    在后端启动时后台调用，避免首次 chat/feed 调用时 C 扩展加载导致 segfault。
+    失败不抛异常，让实际调用时再尝试。
+    """
+    try:
+        _get_st_model()
+        # 主动 init_rag 触发 LightRAG 初始化（加载 graphml + KV store）
+        init_rag()
+        print("[GraphPet] warmup: ST 模型 + LightRAG 初始化完成", flush=True)
+    except Exception as e:
+        print(f"[GraphPet] warmup 跳过: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+
+
 async def openai_compatible_model_complete(prompt, system_prompt=None, history_messages=[], **kwargs):
     messages = []
     if system_prompt:
@@ -1213,7 +1228,30 @@ def query(
         return result
 
     answer = _run_async(_query(), timeout=300)
-    return {"answer": str(answer) if answer else "", "sources": []}
+    # LightRAG 1.5.x 可能返回字符串或 {"response": "..."} 形式（字符串/对象）。
+    # 这里做兼容性拆包，确保最终 answer 是纯文本。
+    answer_text = ""
+    if answer:
+        if isinstance(answer, str):
+            s = answer.strip()
+            # 形如 {"response":"..."} 的 JSON 字符串 → 解析取出 response 字段
+            if s.startswith("{") and s.endswith("}") and '"response"' in s:
+                try:
+                    import json as _json
+                    parsed = _json.loads(s)
+                    if isinstance(parsed, dict) and "response" in parsed:
+                        answer_text = str(parsed["response"] or "")
+                    else:
+                        answer_text = s
+                except Exception:
+                    answer_text = s
+            else:
+                answer_text = s
+        elif isinstance(answer, dict):
+            answer_text = str(answer.get("response") or answer.get("answer") or "")
+        else:
+            answer_text = str(answer)
+    return {"answer": answer_text, "sources": []}
 
 
 def query_stream(
