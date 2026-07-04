@@ -42,6 +42,8 @@ export interface GraphPetAPI {
   onPetClicked: (callback: (data: { x: number; y: number }) => void) => () => void
   sendEmotion: (emotion: string) => void
   onEmotion: (callback: (emotion: string) => void) => () => void
+  petWalkStart: () => void
+  petWalkStop: () => void
 }
 
 declare global {

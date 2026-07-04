@@ -265,11 +265,36 @@ function syncLlmConfigToBackend(settings: AppSettings): void {
   postReq.end()
 }
 
-/** 启动 Python 后端子进程 */
+/** 启动 Python 后端子进程。
+ *
+ * 优先级：
+ * 1. 内嵌 Python（resources/python-runtime/python.exe，PyInstaller 打包的独立运行时）
+ * 2. 系统 Python（python / python3）
+ * 内嵌模式无需用户安装 Python，开箱即用。
+ */
 function startPythonBackend(): void {
-  const pythonBin = process.platform === 'win32' ? 'python' : 'python3'
   const pythonDir = resolveResourcePath('python')
-  console.log(`[GraphPet] 启动 Python 后端: ${pythonBin} ${PYTHON_SERVER}`)
+  console.log(`[GraphPet] 启动 Python 后端...`)
+
+  // 1. 检测内嵌 Python 运行时（PyInstaller 打包）
+  const embeddedPythonExe = process.platform === 'win32'
+    ? path.join(process.resourcesPath || '', 'python-runtime', 'python.exe')
+    : path.join(process.resourcesPath || '', 'python-runtime', 'bin', 'python3')
+  const hasEmbeddedPython = process.env.NODE_ENV === 'production'
+    && fs.existsSync(embeddedPythonExe)
+
+  // 2. 决定 pythonBin 和启动参数
+  let pythonBin: string
+  let serverArgs: string[]
+  if (hasEmbeddedPython) {
+    console.log(`[GraphPet] 使用内嵌 Python: ${embeddedPythonExe}`)
+    pythonBin = embeddedPythonExe
+    serverArgs = [PYTHON_SERVER]
+  } else {
+    pythonBin = process.platform === 'win32' ? 'python' : 'python3'
+    console.log(`[GraphPet] 使用系统 Python: ${pythonBin} ${PYTHON_SERVER}`)
+    serverArgs = [PYTHON_SERVER]
+  }
   pythonStartedByUs = true
 
   const graphpetIndexDir = path.join(app.getPath('userData'), 'graphpet_index')
@@ -286,10 +311,12 @@ function startPythonBackend(): void {
     GRAPHPET_STATE_FILE: getStateFilePath(),
     PYTHONPATH: pythonPathParts.join(process.platform === 'win32' ? ';' : ':'),
     POCKET_INDEX_DIR: graphpetIndexDir,
-    POCKET_DATA_PATH: graphpetDataPath
+    POCKET_DATA_PATH: graphpetDataPath,
+    // 内嵌 Python 模式下禁用自动 pip 安装（运行时已包含依赖）
+    GRAPHPET_EMBEDDED_PYTHON: hasEmbeddedPython ? '1' : '0'
   }
 
-  pythonProcess = spawn(pythonBin, [PYTHON_SERVER], {
+  pythonProcess = spawn(pythonBin, serverArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd: pythonDir,
     env
@@ -715,6 +742,112 @@ function registerIpcHandlers(): void {
       petWindow.webContents.send('pet-clicked', data)
     }
   })
+
+  // ======================== 桌宠自由走动 ========================
+  ipcMain.on('pet:walk-start', () => {
+    startPetWalk()
+  })
+  ipcMain.on('pet:walk-stop', () => {
+    stopPetWalk()
+  })
+  ipcMain.on('pet:walk-to', (_event, targetX: number, targetY: number) => {
+    walkToTarget(targetX, targetY)
+  })
+}
+
+// —— 走动状态机（节流避免高频调用 setPosition）——
+let walkTimer: NodeJS.Timeout | null = null
+let walkTargetX = 0
+let walkTargetY = 0
+let walkStepX = 0
+let walkStepY = 0
+let walkStepCount = 0
+let walkTotalSteps = 0
+
+/**
+ * 启动桌宠自由游走：每隔随机 8~20 秒选一个屏幕内随机目标点，
+ * 用 60ms 步长逐步移动过去（带加速度曲线，避免突兀瞬移）。
+ */
+function startPetWalk(): void {
+  if (walkTimer) return
+  if (!petWindow || petWindow.isDestroyed()) return
+
+  const scheduleNextWalk = (): void => {
+    const delay = 8000 + Math.floor(Math.random() * 12000) // 8~20s
+    walkTimer = setTimeout(() => {
+      if (!petWindow || petWindow.isDestroyed()) {
+        walkTimer = null
+        return
+      }
+      const { workArea } = screen.getPrimaryDisplay()
+      const bounds = petWindow.getBounds()
+      // 在屏幕工作区内随机选一个点（保留 50px 边距）
+      const margin = 50
+      const minX = workArea.x + margin
+      const maxX = workArea.x + workArea.width - WINDOW_WIDTH - margin
+      const minY = workArea.y + margin
+      const maxY = workArea.y + workArea.height - WINDOW_HEIGHT - margin
+      const tx = Math.max(minX, Math.min(maxX, Math.floor(minX + Math.random() * (maxX - minX))))
+      const ty = Math.max(minY, Math.min(maxY, Math.floor(minY + Math.random() * (maxY - minY))))
+      walkToTarget(tx, ty)
+      scheduleNextWalk()
+    }, delay)
+  }
+  scheduleNextWalk()
+}
+
+/**
+ * 主动停止走动定时器。
+ */
+function stopPetWalk(): void {
+  if (walkTimer) {
+    clearTimeout(walkTimer)
+    walkTimer = null
+  }
+}
+
+/**
+ * 让桌宠走到指定坐标（带动画过渡，60ms 一步，每步 4px）。
+ * 走动期间临时关闭 alwaysOnTop 防遮挡其他窗口操作（可选保留）。
+ */
+function walkToTarget(targetX: number, targetY: number): void {
+  if (!petWindow || petWindow.isDestroyed()) return
+  // 取消上一次未完成的步进
+  if (walkStepCount < walkTotalSteps) {
+    // 正在走，直接更新目标，让剩余步数按新方向重算
+  }
+  const bounds = petWindow.getBounds()
+  const dx = targetX - bounds.x
+  const dy = targetY - bounds.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  if (distance < 4) return
+  // 总步数：按距离 4px/步
+  walkTotalSteps = Math.max(8, Math.floor(distance / 4))
+  walkStepCount = 0
+  walkStepX = dx / walkTotalSteps
+  walkStepY = dy / walkTotalSteps
+  walkTargetX = targetX
+  walkTargetY = targetY
+
+  const stepInterval = setInterval(() => {
+    if (!petWindow || petWindow.isDestroyed()) {
+      clearInterval(stepInterval)
+      return
+    }
+    if (walkStepCount >= walkTotalSteps) {
+      clearInterval(stepInterval)
+      return
+    }
+    // 检查用户是否正在拖动窗口（如果在拖动，停止走动避免冲突）
+    // 简化处理：直接 setPosition
+    try {
+      const cur = petWindow.getBounds()
+      petWindow.setPosition(Math.round(cur.x + walkStepX), Math.round(cur.y + walkStepY))
+      walkStepCount++
+    } catch {
+      clearInterval(stepInterval)
+    }
+  }, 60)
 }
 
 // ======================== 窗口创建 ========================

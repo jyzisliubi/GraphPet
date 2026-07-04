@@ -19,7 +19,9 @@
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:linux": "electron-vite build && electron-builder --linux"
+    "dist:linux": "electron-vite build && electron-builder --linux",
+    "build:python-runtime": "python -m pip install pyinstaller && python -m PyInstaller tools/build-python-runtime.spec --noconfirm --distpath resources/python-runtime --workpath build/pyinstaller",
+    "dist:full": "npm run build:python-runtime && electron-vite build && electron-builder --win"
   },
   "build": {
     "appId": "com.jyzisliubi.graphpet",
@@ -35,7 +37,8 @@
       "!python/**/*.pyc",
       "!python/vendor/**/*.pyc",
       "!tools/**",
-      "!freellmapi-cn/**"
+      "!freellmapi-cn/**",
+      "!resources/**"
     ],
     "extraResources": [
       {
@@ -51,6 +54,13 @@
           "!**/*.pyc",
           "!**/tests/**",
           "!**/vendor/**"
+        ]
+      },
+      {
+        "from": "resources/python-runtime",
+        "to": "python-runtime",
+        "filter": [
+          "**/*"
         ]
       }
     ],

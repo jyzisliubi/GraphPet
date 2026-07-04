@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { KeyboardEvent, ReactNode, CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, Paperclip, X, Send, Plus, Trash2, ChevronLeft, ChevronRight, PanelLeft, Minus } from 'lucide-react'
+import { MessageCircle, Paperclip, X, Send, Plus, Trash2, ChevronLeft, ChevronRight, PanelLeft, Minus, Mic, Square } from 'lucide-react'
 import { chatStream, type ChatSource, type ChatHistoryMessage } from '../services/chatService'
 import { playMessageSound, playErrorSound } from '../services/soundService'
 import { speakText, stopSpeaking, isSpeaking } from '../services/ttsService'
+import { startListening, stopListening, isSTTSupported, getIsListening } from '../services/sttService'
 import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
 import { useSettings } from '../stores/settingsStore'
 import NitoIcon from './NitoIcon'
@@ -1129,6 +1130,8 @@ export default function ChatPanel({
   const [error, setError] = useState<string | null>(null)
   const [input, setInput] = useState<string>('')
   const [activeCiteId, setActiveCiteId] = useState<number | null>(null)
+  const [isListeningSTT, setIsListeningSTT] = useState<boolean>(false)
+  const [sttSupported] = useState<boolean>(() => isSTTSupported())
   const [isDragging, setIsDragging] = useState(false)
 
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
@@ -1414,6 +1417,43 @@ export default function ChatPanel({
     inputValueRef.current = q
     setInput(q)
     void handleSend()
+  }
+
+  /** 切换语音输入：未在听则启动，已在听则停止并把累积文本送出 */
+  const toggleSTT = (): void => {
+    if (!sttSupported) return
+    if (getIsListening()) {
+      stopListening()
+      setIsListeningSTT(false)
+      return
+    }
+    setIsListeningSTT(true)
+    startListening('zh-CN', {
+      onInterim: (text) => {
+        // 中间结果：替换输入框内容（用户能实时看到识别效果）
+        setInput((prev) => {
+          // 简单策略：把中间结果追加到现有输入末尾（按空格分隔）
+          const base = prev.replace(/\s*\u200B.*$/, '') // 去掉上一次的中间结果
+          return base ? `${base} ${text}` : text
+        })
+      },
+      onFinal: (text) => {
+        // 最终结果：替换输入框内容
+        setInput((prev) => {
+          const base = prev.replace(/\s*\u200B.*$/, '')
+          const merged = base ? `${base} ${text}` : text
+          inputValueRef.current = merged
+          return merged
+        })
+      },
+      onError: (err) => {
+        setIsListeningSTT(false)
+        setError(`语音识别失败：${err}`)
+      },
+      onEnd: () => {
+        setIsListeningSTT(false)
+      }
+    })
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -1734,13 +1774,37 @@ export default function ChatPanel({
             ref={inputRef}
             className="graphpet-chat-input"
             value={input}
-            placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+            placeholder={isListeningSTT ? '正在聆听... 说话即可输入' : '输入问题，Enter 发送，Shift+Enter 换行'}
             rows={1}
             disabled={loading}
             spellCheck={false}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
           />
+          {sttSupported && (
+            <button
+              type="button"
+              className={`graphpet-chat-mic${isListeningSTT ? ' graphpet-chat-mic--listening' : ''}`}
+              onClick={toggleSTT}
+              title={isListeningSTT ? '停止语音输入' : '语音输入'}
+              disabled={loading}
+              style={{
+                padding: '6px 10px',
+                background: isListeningSTT ? '#ef4444' : 'transparent',
+                color: isListeningSTT ? '#fff' : '#a1a1aa',
+                border: '1px solid #27272a',
+                borderRadius: 8,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12
+              }}
+            >
+              {isListeningSTT ? <Square size={14} /> : <Mic size={14} />}
+            </button>
+          )}
           <button
             type="button"
             className="graphpet-chat-send"

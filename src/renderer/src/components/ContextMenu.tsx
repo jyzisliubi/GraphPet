@@ -10,7 +10,8 @@ import {
   Trash2,
   Layout,
   LogOut,
-  Plus
+  Plus,
+  Footprints
 } from 'lucide-react'
 
 // 右键菜单浮层组件（对应 Task 6）
@@ -68,6 +69,7 @@ const MENU_ITEMS: MenuItemDef[] = [
   { key: 'memory', icon: Brain, label: '我的记忆', dividerBefore: true },
   { key: 'spit-last', icon: Trash2, label: '吐掉最近吃的' },
   { key: 'web', icon: Layout, label: '打开网页面板' },
+  { key: 'walk-start', icon: Footprints, label: '开始走动', dividerBefore: true },
   { key: 'exit', icon: LogOut, label: '退出', dividerBefore: true }
 ]
 

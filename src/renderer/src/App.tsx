@@ -88,6 +88,7 @@ function AppInner(): JSX.Element {
   const [onboardingVisible, setOnboardingVisible] = useState(false)
   const [urlFeedDialogVisible, setUrlFeedDialogVisible] = useState(false)
   const [chatPanelVisible, setChatPanelVisible] = useState(false)
+  const [walking, setWalking] = useState<boolean>(false)
   const [triplePreview, setTriplePreview] = useState<FeedResultPreview | null>(null)
   const [feedProgress, setFeedProgress] = useState<{ visible: boolean; files: FeedFileItem[] }>({ visible: false, files: [] })
   const [chatThinking, setChatThinking] = useState<boolean>(false)
@@ -339,11 +340,27 @@ function AppInner(): JSX.Element {
         void updateSettings({ quietMode: !settings.quietMode })
         showMessage(settings.quietMode ? 'Nito 恢复说话啦~' : 'Nito 先安静一会儿...')
         break
+      case 'walk-start':
+        if (walking) {
+          window.api.petWalkStop()
+          setWalking(false)
+          showMessage('Nito 停下啦~')
+        } else {
+          window.api.petWalkStart()
+          setWalking(true)
+          showMessage('Nito 开始在桌面自由走动啦~ 再点一次停止')
+        }
+        break
+      case 'walk-stop':
+        window.api.petWalkStop()
+        setWalking(false)
+        showMessage('Nito 停下啦~')
+        break
       case 'exit':
         window.api.quit()
         break
     }
-  }, [closeContextMenu, handleBatchFeed, handleSpitLast, settings.quietMode, updateSettings, showMessage, createConversation])
+  }, [closeContextMenu, handleBatchFeed, handleSpitLast, settings.quietMode, updateSettings, showMessage, createConversation, walking])
 
   const handleSkinSelect = useCallback(
     (skinPath: string, skinFormat?: 'cubism2' | 'cubism4'): void => {

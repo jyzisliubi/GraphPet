@@ -104,6 +104,23 @@ cd ..
 npm run dev
 ```
 
+### 方式三：内嵌 Python 完整打包（开发者构建发布版）
+
+把 Python 运行时和所有依赖打进安装包，**用户无需自己装 Python**：
+
+```bash
+# 1. 安装 PyInstaller
+pip install pyinstaller
+
+# 2. 构建内嵌 Python 运行时（产物到 resources/python-runtime/）
+npm run build:python-runtime
+
+# 3. 构建包含内嵌 Python 的安装包
+npm run dist:full
+```
+
+> 该模式生成的 `GraphPet-setup.exe` 包含 Python 解释器、FastAPI、Docling、LightRAG、sentence-transformers 等所有依赖，用户下载安装后即可直接运行，无需任何额外环境配置。
+
 ---
 
 ## 💡 核心功能
@@ -249,14 +266,17 @@ GraphPet/
 - ✅ 管理面板（记忆图谱 / 文件列表 / 成长记录 / 时间线 / 深度对话）
 - ✅ 多格式支持（PDF / Word / TXT / Markdown / 代码 / 网页 / 图片）
 - ✅ TTS 语音播报 + Live2D 口型同步（edge-tts，设置面板可开关）
+- ✅ STT 语音输入（Web Speech API，麦克风按钮在输入框旁）
+- ✅ 桌宠自由走动（右键菜单"开始走动"，每 8~20s 自动巡逻桌面）
+- ✅ 内嵌 Python 打包（PyInstaller + electron-builder，免安装运行时）
+- ✅ WebUI 美化（Linear/Stripe 风格，渐变品牌色、状态指示灯、动画过渡）
+- ✅ 英文 README 摘要
 
 ### v0.3.x — 计划中 🚧
 
-- 🚧 STT 语音输入 — 麦克风实时识别
-- 🚧 宠物走动 — 桌面自由游走、爬窗口边缘、随机巡逻
 - 🚧 自定义模型 — 支持导入第三方 Live2D 模型
-- 🚧 内嵌 Python — 免安装运行时，开箱即用
 - 🚧 Mac / Linux 平台支持 — 跨平台打包
+- 🚧 屏幕理解 — 截屏 + 视觉模型，Nito 看得见你的屏幕
 
 ### v0.4.x — 未来规划 🔮
 

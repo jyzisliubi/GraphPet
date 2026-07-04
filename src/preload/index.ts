@@ -41,7 +41,10 @@ const IPC_CHANNELS = {
   CHAT_MINIMIZE: 'chat:minimize',
   PET_CLICK: 'pet:click',
   PET_CLICKED: 'pet-clicked',
-  PET_EMOTION: 'pet:emotion'
+  PET_EMOTION: 'pet:emotion',
+  PET_WALK_START: 'pet:walk-start',
+  PET_WALK_STOP: 'pet:walk-stop',
+  PET_WALK_TO: 'pet:walk-to'
 } as const
 
 const api = {
@@ -152,6 +155,14 @@ const api = {
     }
     ipcRenderer.on(IPC_CHANNELS.PET_EMOTION, listener)
     return () => { ipcRenderer.removeListener(IPC_CHANNELS.PET_EMOTION, listener) }
+  },
+  // 启动桌宠自由走动（每隔 8~20s 自动选屏幕内随机目标点行走）
+  petWalkStart: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.PET_WALK_START)
+  },
+  // 停止桌宠走动
+  petWalkStop: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.PET_WALK_STOP)
   }
 }
 
