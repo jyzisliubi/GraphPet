@@ -193,6 +193,15 @@ Right-click Nito → "Management panel":
 - ✅ **Enhanced tray menu** (v0.3.9) — chat window / walk toggle / quiet mode / about
 - ✅ **Multi-monitor** (v0.3.9) — pet remembers position, walks on current display
 
+### v0.4.0 — TTS Matrix + Screen Awareness + i18n 🎉
+
+- ✅ **Multi-TTS engine** — Edge TTS (online free) + Piper TTS (local offline, privacy-friendly)
+- ✅ **Screen awareness** — auto-hide pet when fullscreen app (game/video) detected, restore on exit
+- ✅ **i18n** — Chinese/English bilingual switching, lightweight zero-dependency i18n
+- ✅ **14 P1 bug fixes** — drag failure / feed toast / STT leak / Cubism 4 expression / TTS node leak / path traversal / multi-monitor screenshot / ThreadPool shutdown / future cancel
+- ✅ **5 P2 UX fixes** — scroll hijack / Escape in textarea / duplicate listener / duplicate welcome / restorePetTop race
+- ✅ **5 P3 perf fixes** — ThreadPool split / SettingsPanel unsaved confirm / settingsStore race / graphml cache / MemoryGraph RAF
+
 ### v0.4.x — Planned 🚧
 - 🚧 Whisper STT — replace Web Speech API for better Chinese
 - 🚧 Live2D drag physics — body follows drag, inertia bounce
