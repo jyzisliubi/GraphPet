@@ -691,6 +691,11 @@ export default function SettingsPanel({
           checked={draft.ttsEnabled}
           onChange={(v) => patch({ ttsEnabled: v })}
         />
+        <ToggleField
+          label="语音打断（你说话时停止朗读，需麦克风）"
+          checked={draft.vadEnabled}
+          onChange={(v) => patch({ vadEnabled: v })}
+        />
 
         <div className="graphpet-settings-footer">
           <button

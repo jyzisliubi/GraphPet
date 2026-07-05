@@ -20,6 +20,8 @@ export interface AppSettings {
   ttsEnabled: boolean
   /** TTS 语音角色（edge-tts ShortName） */
   ttsVoice: string
+  /** VAD 语音打断开关 */
+  vadEnabled: boolean
 }
 
 // IPC 通道名常量（与主进程保持一致）

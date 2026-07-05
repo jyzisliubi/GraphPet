@@ -11,15 +11,17 @@ electron-builder 会把 resources/python-runtime 复制到安装包的 resources
 
 注意：
 - 不打包 server.py（它在 python/ 目录里，作为 extraResources 单独复制）
-- 不打包 sentence-transformers 模型权重（用户首次运行时联网下载到 userData）
+- 不打包 fastembed 模型权重（用户首次运行时联网下载到 userData）
 - 不打包 Docling 模型权重（同上）
+- v0.3.2+ 用 fastembed 替换 sentence-transformers + torch（避免 Windows uvicorn
+  多线程下 0xC0000005 segfault，进程级崩溃无法 try/except 捕获）
 """
 import sys
 from pathlib import Path
 
 block_cipher = None
 
-# 收集所有运行时需要的隐藏导入（sentence-transformers/docling 有大量动态导入）
+# 收集所有运行时需要的隐藏导入（fastembed/docling 有大量动态导入）
 hiddenimports = [
     'uvicorn.logging',
     'uvicorn.protocols',
@@ -31,10 +33,9 @@ hiddenimports = [
     'uvicorn.lifespan.on',
     'fastapi',
     'pydantic',
-    # sentence-transformers 动态导入
-    'sentence_transformers',
-    'transformers',
-    'torch',
+    # fastembed 动态导入（纯 onnxruntime，无 torch）
+    'fastembed',
+    'onnxruntime',
     # docling 动态导入
     'docling',
     'docling.document_converter',

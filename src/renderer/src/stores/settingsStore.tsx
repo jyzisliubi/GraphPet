@@ -41,6 +41,8 @@ export interface AppSettings {
   ttsEnabled: boolean
   /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
   ttsVoice: string
+  /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
+  vadEnabled: boolean
 }
 
 /** 默认设置（与主进程 main/index.ts 中的 DEFAULT_SETTINGS 保持一致） */
@@ -55,7 +57,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
   petScale: 1.0,
   ttsEnabled: false,
-  ttsVoice: 'zh-CN-XiaoyiNeural'
+  ttsVoice: 'zh-CN-XiaoyiNeural',
+  vadEnabled: false
 }
 
 /** Reducer Action 类型 */

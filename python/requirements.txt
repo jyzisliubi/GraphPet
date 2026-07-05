@@ -4,7 +4,7 @@
 #   - lightrag-hku：港大 HKU LightRAG，原生增量插入 + 图谱+向量双层检索
 #   - docling：IBM 文档解析（PDF / Word / 网页 → Markdown），支持复杂布局/表格
 #   - ollama：LightRAG 的 LLM 后端原生 binding
-#   - sentence-transformers：本地 embedding（BGE-small-zh），比 Ollama embedding 更稳定
+#   - fastembed：纯 onnxruntime embedding（BGE-small-zh），无 torch 依赖，避免 Windows 多线程 segfault
 #   - networkx：读取 LightRAG 的 graphml 图谱文件做统计 / 三元组列表
 
 fastapi
@@ -18,8 +18,9 @@ ollama>=0.4.0
 networkx>=3.0
 
 # 本地 Embedding（BAAI/bge-small-zh-v1.5，512维）
-# 首次运行会从 HuggingFace 下载模型（约 100MB），之后走本地缓存
-sentence-transformers>=2.7.0
+# fastembed 用纯 onnxruntime，无 torch 依赖（避免 Windows uvicorn 多线程 segfault）
+# 首次运行会从 HuggingFace 下载 ONNX 模型（约 100MB），之后走本地缓存
+fastembed>=0.3.0
 
 # PDF 页数估算（_estimate_pages 用，可选）
 PyPDF2>=3.0.0

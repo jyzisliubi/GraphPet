@@ -45,21 +45,124 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GraphPet-Windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/*.yml
+          retention-days: 30
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: |
+          pip install --no-cache-dir -r python/requirements.txt -t python/vendor
+          find python/vendor -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Build & Package
+        run: npx electron-vite build && npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # 使用 ad-hoc 签名避免 macOS 公证阻塞（用户首次启动时需在系统设置中允许）
+          CSC_LINK: ''
+          CSC_KEY_PASSWORD: ''
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GraphPet-macOS
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.yml
+          retention-days: 30
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: |
+          pip install --no-cache-dir -r python/requirements.txt -t python/vendor
+          find python/vendor -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Build & Package
+        run: npx electron-vite build && npx electron-builder --linux --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GraphPet-Linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.yml
           retention-days: 30
 
   release:
     name: Release
-    needs: build-windows
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
-      - name: Download artifacts
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: GraphPet-Windows
+          path: release
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GraphPet-macOS
+          path: release
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GraphPet-Linux
           path: release
 
       - name: Release to GitHub
@@ -67,6 +170,10 @@ jobs:
         with:
           files: |
             release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
           draft: true
           generate_release_notes: true
         env:

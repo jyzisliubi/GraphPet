@@ -7,6 +7,7 @@ import { chatStream, type ChatSource, type ChatHistoryMessage } from '../service
 import { playMessageSound, playErrorSound } from '../services/soundService'
 import { speakText, stopSpeaking, isSpeaking } from '../services/ttsService'
 import { startListening, stopListening, isSTTSupported, getIsListening } from '../services/sttService'
+import { useVAD } from '../hooks/useVAD'
 import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
 import { useSettings } from '../stores/settingsStore'
 import NitoIcon from './NitoIcon'
@@ -1133,6 +1134,29 @@ export default function ChatPanel({
   const [isListeningSTT, setIsListeningSTT] = useState<boolean>(false)
   const [sttSupported] = useState<boolean>(() => isSTTSupported())
   const [isDragging, setIsDragging] = useState(false)
+
+  // VAD 语音打断：用户说话时停止 TTS（仅当 settings.vadEnabled 开启时激活）
+  const vadRef = useRef<boolean>(false)
+  vadRef.current = settingsRef.current.vadEnabled
+  const { start: startVAD, stop: stopVAD, active: vadActive } = useVAD({
+    threshold: 0.06,
+    startDebounceMs: 200,
+    endDebounceMs: 800,
+    onVoiceStart: () => {
+      // 用户开始说话 → 立即停止 TTS
+      if (isSpeaking()) {
+        stopSpeaking()
+      }
+    },
+  })
+  // vadEnabled 切换时启动/停止 VAD
+  useEffect(() => {
+    if (settingsRef.current.vadEnabled && !vadActive) {
+      void startVAD()
+    } else if (!settingsRef.current.vadEnabled && vadActive) {
+      stopVAD()
+    }
+  }, [settings.vadEnabled, vadActive, startVAD, stopVAD, settingsRef])
 
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
   const dragRef = useRef<{

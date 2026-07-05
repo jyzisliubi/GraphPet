@@ -440,6 +440,8 @@ interface AppSettings {
   ttsEnabled: boolean
   /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
   ttsVoice: string
+  /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
+  vadEnabled: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -453,7 +455,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
   petScale: 1,
   ttsEnabled: false,
-  ttsVoice: 'zh-CN-XiaoyiNeural'
+  ttsVoice: 'zh-CN-XiaoyiNeural',
+  vadEnabled: false
 }
 
 /** 从 graphpet_state.json 读取设置，缺失则返回默认值 */

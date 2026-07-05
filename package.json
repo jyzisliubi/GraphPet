@@ -1,6 +1,6 @@
 {
   "name": "graphpet",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "description": "GraphPet - 🐾 你的AI桌面宠物，用知识图谱记住一切。喂文件学习知识，Live2D互动陪伴",
   "main": "out/main/index.js",
   "author": "Jay Z <3364415961@qq.com>",

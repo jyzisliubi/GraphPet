@@ -20,7 +20,7 @@
 [![LightRAG](https://img.shields.io/badge/LightRAG-1.5+-FF6B9D)](https://github.com/HKUDS/LightRAG)
 [![Docling](https://img.shields.io/badge/Docling-2.0+-0078D4?logo=ibm&logoColor=white)](https://github.com/docling-project/docling)
 
-**简体中文** | [English](#english-summary)
+**简体中文** | [English](README_EN.md)
 
 </div>
 
@@ -174,7 +174,7 @@ npm run dist:full
 | 后端服务 | **Python + FastAPI** | 3.10+ | 异步高性能 API |
 | 文档解析 | **Docling** | 2.0+ | IBM Research 开源 |
 | 知识图谱 | **LightRAG** | 1.5+ | 港大 HKU EMNLP 2025 |
-| 向量嵌入 | **sentence-transformers** | 2.7+ | BGE-small-zh 本地推理 |
+| 向量嵌入 | **fastembed** | 0.3+ | 纯 ONNX 推理（无 torch 依赖，避免 Windows segfault） |
 | LLM 后端 | **FreeLLM Router** | — | 内置免费 API 聚合 |
 
 ### 🏗 系统架构
@@ -270,17 +270,23 @@ GraphPet/
 - ✅ 桌宠自由走动（右键菜单"开始走动"，每 8~20s 自动巡逻桌面）
 - ✅ 内嵌 Python 打包（PyInstaller + electron-builder，免安装运行时）
 - ✅ WebUI 美化（Linear/Stripe 风格，渐变品牌色、状态指示灯、动画过渡）
-- ✅ 英文 README 摘要
+- ✅ 英文 README（[README_EN.md](README_EN.md)）
 
-### v0.3.x — 计划中 🚧
+### v0.3.x — v0.3.2 已完成 ✅
+
+- ✅ d3-force 力导向图谱可视化（替换手写 SVG 布局，支持节点拖拽/搜索/缩放）
+- ✅ fastembed 替换 sentence-transformers + torch（解决 Windows uvicorn 多线程 segfault）
+- ✅ 跨平台 CI（Windows / macOS / Linux 三平台 release）
+
+### v0.4.x — 计划中 🚧
 
 - 🚧 自定义模型 — 支持导入第三方 Live2D 模型
-- 🚧 Mac / Linux 平台支持 — 跨平台打包
 - 🚧 屏幕理解 — 截屏 + 视觉模型，Nito 看得见你的屏幕
+- 🚧 语音打断 — VAD 检测用户说话时停止 TTS
+- 🚧 Whisper STT — 替换 Web Speech API，提升中文识别质量
 
-### v0.4.x — 未来规划 🔮
+### v0.5.x — 未来规划 🔮
 
-- 🔮 屏幕理解 — 截屏 + 视觉模型，Nito 看得见你的屏幕
 - 🔮 多宠物共存 — 喂养多只桌宠，性格各异互相影响
 - 🔮 插件系统 — 第三方扩展动作 / 皮肤 / 技能
 - 🔮 知识共享 — 桌宠之间交换知识图谱，社区共建
@@ -349,6 +355,8 @@ GraphPet 后端依赖 Python 3.10+。请到 [python.org](https://www.python.org/
 - [Ollama](https://ollama.com/) — 本地大模型运行时
 - [Pollinations AI](https://pollinations.ai) — 免费 AI API
 - [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) — Live2D WebGL 渲染
+- [fastembed](https://github.com/qdrant/fastembed) — 轻量 ONNX 向量嵌入
+- [d3-force](https://github.com/d3/d3-force) — 力导向图谱布局
 
 ---
 
@@ -371,48 +379,3 @@ Made with ❤️ by Jay Z
     <img alt="Star History Chart" src="https://star-history.com/jyzisliubi/GraphPet.svg" width="720" />
   </picture>
 </a>
-
----
-
-## English Summary
-
-> **GraphPet** — An AI desktop pet that *learns from your files*.
-
-Most desktop pets just sit there looking cute. **Nito** can also eat your PDFs, Word docs, code, and web pages, build a knowledge graph from them (Docling + LightRAG), and answer your questions based on what she learned. She also speaks — TTS voice playback with Live2D lip-sync.
-
-### Highlights
-
-- **Zero-config free LLM** — Built-in aggregator of free Chinese LLM APIs (Pollinations etc.), works out of the box. No API key, no Ollama install required.
-- **8+ LLM providers** — DeepSeek, Zhipu, Kimi, SiliconFlow, OpenAI, Ollama, custom OpenAI-compatible endpoints.
-- **Knowledge-graph feeding** — Drag-and-drop files/URLs onto Nito; Docling parses them, LightRAG incrementally inserts entities/relations into a graph.
-- **Live2D Nito family** — 5 sister skins (Nito / Ni-J / Nico / Nietzsche / Nipsilon), 21 motion groups, emotion-driven expressions.
-- **TTS voice + lip-sync** — edge-tts (free Microsoft TTS) with `ParamMouthOpenY` driving Live2D mouth.
-- **Web panel** — Memory graph (SVG force-directed), file list, growth record, timeline, deep chat.
-
-### Tech stack
-
-Electron 31 · React 18 · TypeScript 5.5 · PIXI.js 6.5 · pixi-live2d-display · Python 3.10+ · FastAPI · Docling 2.0+ · LightRAG 1.5+ (HKU) · sentence-transformers + BGE-small-zh.
-
-### Quick start
-
-```bash
-git clone https://github.com/jyzisliubi/GraphPet.git
-cd GraphPet
-npm install
-cd python && pip install -r requirements.txt && cd ..
-npm run dev
-```
-
-Or grab a Windows installer from [Releases](https://github.com/jyzisliubi/GraphPet/releases).
-
-### Roadmap
-
-- ✅ v0.2.x — Live2D pet, free LLM, knowledge-graph feeding, smart Q&A, web panel, multi-format files, TTS + lip-sync
-- 🚧 v0.3.x — STT voice input, pet walking on desktop, custom Live2D model import, embedded Python, macOS/Linux
-- 🔮 v0.4.x — Screen understanding, multi-pet coexistence, plugin system, knowledge-graph sharing
-
-### License
-
-MIT — feel free to fork, modify, and share.
-
-> Full documentation is in Chinese above. PRs and Issues in English are also welcome.
