@@ -47,7 +47,10 @@ const IPC_CHANNELS = {
   PET_EMOTION: 'pet:emotion',
   PET_WALK_START: 'pet:walk-start',
   PET_WALK_STOP: 'pet:walk-stop',
-  PET_WALK_TO: 'pet:walk-to'
+  PET_WALK_TO: 'pet:walk-to',
+  LIVE2D_IMPORT_MODEL: 'live2d:import-model',
+  LIVE2D_LIST_IMPORTED: 'live2d:list-imported',
+  LIVE2D_DELETE_IMPORTED: 'live2d:delete-imported'
 } as const
 
 const api = {
@@ -175,6 +178,18 @@ const api = {
   // 让桌宠走到指定坐标（带动画过渡）
   petWalkTo: (x: number, y: number): void => {
     ipcRenderer.send(IPC_CHANNELS.PET_WALK_TO, x, y)
+  },
+  // 导入自定义 Live2D 模型（弹出文件选择，复制到 userData/imported-models）
+  importLive2DModel: (): Promise<{ success: boolean; name?: string; path?: string; format?: 'cubism2' | 'cubism4'; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LIVE2D_IMPORT_MODEL)
+  },
+  // 列出已导入的自定义模型
+  listImportedLive2DModels: (): Promise<Array<{ name: string; path: string; format: 'cubism2' | 'cubism4' }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LIVE2D_LIST_IMPORTED)
+  },
+  // 删除已导入的自定义模型（按 name）
+  deleteImportedLive2DModel: (name: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LIVE2D_DELETE_IMPORTED, name)
   }
 }
 

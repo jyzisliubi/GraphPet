@@ -5,6 +5,9 @@
 ## [Unreleased]
 
 ### Added
+- 自定义 Live2D 模型导入：用户可导入任意 .model3.json/.model.json 模型，复制到 userData/imported-models 持久化
+- 配置导入/导出：SettingsPanel 新增 📥导入/📤导出 按钮，支持 JSON 配置文件迁移
+- 全局热键 Ctrl+Shift+G (macOS Cmd+Shift+G) 切换宠物窗口显示
 - 心情/行为状态系统：mood 持久化 + 互动事件驱动 + 自动衰减 + 内心独白按心情分组
 - Profile 面板新增心情/行为状态卡片（跨 window 同步）
 - 启动时根据持久化 mood 选择欢迎动作 + 文案
@@ -21,6 +24,22 @@
 - P1: ttsService 每次说话 new AudioContext，复用单例避免 6 个上限泄漏
 - P1: Python `_call_llm_chat._fail_cooldown` 用函数属性存储改为 threading.Lock 保护
 - P2: chatStore 两个 useState 各自调用 loadConversations 重复读 localStorage
+
+### Changed
+- 单实例锁生产环境失败时 app.quit()，已获锁实例监听 second-instance 唤起主窗口
+- SkinPicker 重构：新增「已导入模型」分区 + 删除按钮，UI 卡片从 260×320 扩展为 320×460
+
+## [0.3.7] - 2026-07-05
+
+### Added
+- 配置导入/导出（SettingsPanel JSON 文件）
+- 全局热键 Ctrl+Shift+G
+
+## [0.3.6] - 2026-07-05
+
+### Added
+- 社区文件：ISSUE_TEMPLATE / PR_TEMPLATE / CODEOWNERS / FUNDING / CODE_OF_CONDUCT / CHANGELOG
+- 修复 3 个 P0 + 6 个 P1 关键 bug（详见 Fixed 段落）
 
 ## [0.3.5] - 2026-07-05
 

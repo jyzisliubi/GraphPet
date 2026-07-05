@@ -652,6 +652,112 @@ function registerIpcHandlers(): void {
     syncLlmConfigToBackend(settings)
   })
 
+  // ============= 自定义 Live2D 模型导入 =============
+  // 已导入模型目录：app.getPath('userData')/imported-models/<name>/
+  function getImportedModelsDir(): string {
+    const dir = path.join(app.getPath('userData'), 'imported-models')
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    return dir
+  }
+
+  // 递归复制目录
+  function copyDirRecursive(src: string, dest: string): void {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true })
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+      const srcPath = path.join(src, entry.name)
+      const destPath = path.join(dest, entry.name)
+      if (entry.isDirectory()) {
+        copyDirRecursive(srcPath, destPath)
+      } else if (entry.isFile()) {
+        fs.copyFileSync(srcPath, destPath)
+      }
+    }
+  }
+
+  // 导入自定义 Live2D 模型：弹出文件夹选择对话框，复制到 imported-models
+  ipcMain.handle('live2d:import-model', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: '选择 Live2D 模型目录',
+        properties: ['openDirectory'],
+        message: '请选择包含 .model3.json 或 .model.json 的模型目录'
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: '已取消选择' }
+      }
+      const selectedDir = result.filePaths[0]
+      const dirName = path.basename(selectedDir)
+      // 找模型文件
+      const files = fs.readdirSync(selectedDir)
+      const modelFile = files.find((f) => f.toLowerCase().endsWith('.model3.json')) ?? files.find((f) => f.toLowerCase().endsWith('.model.json'))
+      if (!modelFile) {
+        return { success: false, error: '所选目录中未找到 .model3.json 或 .model.json 文件' }
+      }
+      const isCubism4 = modelFile.toLowerCase().endsWith('.model3.json')
+      const format = isCubism4 ? 'cubism4' as const : 'cubism2' as const
+      // 复制到 imported-models/<dirName>/
+      const importedRoot = getImportedModelsDir()
+      const destDir = path.join(importedRoot, dirName)
+      // 若已存在同名模型，覆盖
+      if (fs.existsSync(destDir)) {
+        fs.rmSync(destDir, { recursive: true, force: true })
+      }
+      copyDirRecursive(selectedDir, destDir)
+      const modelPath = path.join(destDir, modelFile)
+      const fileUrl = pathToFileURL(modelPath).href
+      console.log(`[GraphPet] 已导入 Live2D 模型: ${dirName}/${modelFile} (${format})`)
+      return { success: true, name: dirName, path: fileUrl, format }
+    } catch (err) {
+      console.error('[GraphPet] 导入 Live2D 模型失败:', err)
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // 列出已导入的自定义模型
+  ipcMain.handle('live2d:list-imported', () => {
+    const result: Array<{ name: string; path: string; format: 'cubism2' | 'cubism4' }> = []
+    try {
+      const importedRoot = getImportedModelsDir()
+      for (const dirName of fs.readdirSync(importedRoot)) {
+        const dirPath = path.join(importedRoot, dirName)
+        if (!fs.statSync(dirPath).isDirectory()) continue
+        const files = fs.readdirSync(dirPath)
+        const modelFile = files.find((f) => f.toLowerCase().endsWith('.model3.json')) ?? files.find((f) => f.toLowerCase().endsWith('.model.json'))
+        if (!modelFile) continue
+        const isCubism4 = modelFile.toLowerCase().endsWith('.model3.json')
+        const format = isCubism4 ? 'cubism4' as const : 'cubism2' as const
+        result.push({
+          name: dirName,
+          path: pathToFileURL(path.join(dirPath, modelFile)).href,
+          format
+        })
+      }
+    } catch (err) {
+      console.error('[GraphPet] 列出已导入模型失败:', err)
+    }
+    return result
+  })
+
+  // 删除已导入的自定义模型
+  ipcMain.handle('live2d:delete-imported', (_event, name: string) => {
+    try {
+      const importedRoot = getImportedModelsDir()
+      const targetDir = path.join(importedRoot, name)
+      // 路径校验，防止路径穿越
+      if (!targetDir.startsWith(importedRoot)) {
+        return { success: false, error: '非法路径' }
+      }
+      if (!fs.existsSync(targetDir)) {
+        return { success: false, error: '模型不存在' }
+      }
+      fs.rmSync(targetDir, { recursive: true, force: true })
+      console.log(`[GraphPet] 已删除导入模型: ${name}`)
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   // 打开文件选择对话框（支持多选）
   ipcMain.handle('feed:file-dialog', async () => {
     try {
