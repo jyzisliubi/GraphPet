@@ -272,17 +272,20 @@ GraphPet/
 - ✅ WebUI 美化（Linear/Stripe 风格，渐变品牌色、状态指示灯、动画过渡）
 - ✅ 英文 README（[README_EN.md](README_EN.md)）
 
-### v0.3.x — v0.3.2 已完成 ✅
+### v0.3.x — v0.3.3 已完成 ✅
 
 - ✅ d3-force 力导向图谱可视化（替换手写 SVG 布局，支持节点拖拽/搜索/缩放）
 - ✅ fastembed 替换 sentence-transformers + torch（解决 Windows uvicorn 多线程 segfault）
 - ✅ 跨平台 CI（Windows / macOS / Linux 三平台 release）
+- ✅ **Live2D 自动生命感**（v0.3.3）— auto blink / look at / idle eye movement 三大特性，参考 AIRI
+- ✅ **内心想法气泡**（v0.3.3）— 90-180s 随机云朵气泡，参考 Open-LLM-VTuber
+- ✅ **截屏喂食**（v0.3.3）— desktopCapturer 截屏后送入 RAG 图谱，Nito "看得见"你的屏幕
+- ✅ **情绪映射修复**（v0.3.3）— LLM 返回 emotion 字段透传到 Live2D 表情
 
 ### v0.4.x — 计划中 🚧
 
+- 🚧 心情/行为状态系统 — 状态机驱动情绪持久化、动作选择、内心独白
 - 🚧 自定义模型 — 支持导入第三方 Live2D 模型
-- 🚧 屏幕理解 — 截屏 + 视觉模型，Nito 看得见你的屏幕
-- 🚧 语音打断 — VAD 检测用户说话时停止 TTS
 - 🚧 Whisper STT — 替换 Web Speech API，提升中文识别质量
 
 ### v0.5.x — 未来规划 🔮

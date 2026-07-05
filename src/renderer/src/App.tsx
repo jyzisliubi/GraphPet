@@ -22,6 +22,7 @@ import { useBubble } from './hooks/useBubble'
 import { useFeed } from './hooks/useFeed'
 import { useProactive } from './hooks/useProactive'
 import { useIdleThoughts } from './hooks/useIdleThoughts'
+import { usePetState } from './hooks/usePetState'
 import { BubbleProvider } from './stores/bubbleStore'
 import { SettingsProvider, useSettings } from './stores/settingsStore'
 import { ChatStoreProvider, useChatStore } from './stores/chatStore'
@@ -66,16 +67,21 @@ function AppInner(): JSX.Element {
   const { bubbleProps, showMessage, showInnerThought } = useBubble()
   const { settings, saveSettings, updateSettings } = useSettings()
   const { createConversation } = useChatStore()
+  const petState = usePetState()
+  const { recordInteraction } = petState
 
   const { feeding, feedFile, feedUrl, feedFileBatch, cancelCurrentFeed } = useFeed({
     onFeedStart: () => {
       try { live2dApiRef.current?.triggerMotion('eat') } catch { /* ignore */ }
+      recordInteraction('feed-start')
     },
     onFeedEnd: (success: boolean) => {
       if (success) {
         try { live2dApiRef.current?.triggerMotion('tap_body') } catch { /* ignore */ }
+        recordInteraction('feed-success')
       } else {
         try { live2dApiRef.current?.triggerMotion('shake') } catch { /* ignore */ }
+        recordInteraction('feed-fail')
       }
       setTimeout(() => {
         try { live2dApiRef.current?.setExpression(0) } catch { /* ignore */ }
@@ -287,6 +293,7 @@ function AppInner(): JSX.Element {
 
   const handleSpitLast = useCallback(async (): Promise<void> => {
     showMessage('呕...')
+    recordInteraction('spit')
     try {
       try { live2dApiRef.current?.triggerMotion('sad') } catch { /* ignore */ }
       const res = await spitLast()
@@ -303,11 +310,12 @@ function AppInner(): JSX.Element {
         try { live2dApiRef.current?.setExpression(0) } catch { /* ignore */ }
       }, 2000)
     }
-  }, [showMessage])
+  }, [showMessage, recordInteraction])
 
   // 截屏喂食：截取主屏幕 → 走现有 feedFile 管道（后端 _parse_image_with_ollama 处理图片）
   const handleFeedScreenshot = useCallback(async (): Promise<void> => {
     showMessage('咔嚓！截屏中...', 2500)
+    recordInteraction('screenshot')
     try {
       const result = await window.api.captureScreenshot()
       if (!result.success || !result.filePath) {
@@ -321,7 +329,7 @@ function AppInner(): JSX.Element {
       const errMsg = err instanceof Error ? err.message : String(err)
       showMessage('截屏喂食失败：' + errMsg, 6000)
     }
-  }, [showMessage, feedFile])
+  }, [showMessage, feedFile, recordInteraction])
 
   const handleContextMenuAction = useCallback((action: string): void => {
     closeContextMenu()
@@ -457,11 +465,13 @@ function AppInner(): JSX.Element {
       if (thinking) {
         live2dApiRef.current?.setExpression('2')
         live2dApiRef.current?.triggerMotion('thinking')
+        recordInteraction('chat-ask')
       } else {
         live2dApiRef.current?.setExpression(0)
+        recordInteraction('chat-reply')
       }
     } catch { /* ignore */ }
-  }, [])
+  }, [recordInteraction])
 
   const handleEmotionChange = useCallback((emotion: string): void => {
     try {
@@ -476,12 +486,18 @@ function AppInner(): JSX.Element {
       }
       const motion = emotionMap[emotion] || 'idle'
       live2dApiRef.current?.triggerMotion(motion)
+      // 同步更新 petState mood
+      if (emotion === 'happy' || emotion === 'surprised') {
+        recordInteraction('chat-reply')
+      } else if (emotion === 'sad' || emotion === 'angry') {
+        recordInteraction('chat-error')
+      }
       // 3秒后恢复默认表情
       setTimeout(() => {
         try { live2dApiRef.current?.setExpression(0) } catch { /* ignore */ }
       }, 3000)
     } catch { /* ignore */ }
-  }, [])
+  }, [recordInteraction])
 
   // 监听来自独立聊天窗口的emotion事件
   useEffect(() => {
@@ -508,20 +524,23 @@ function AppInner(): JSX.Element {
     try {
       if (isHead) {
         live2dApiRef.current?.triggerMotion('tap_head')
+        recordInteraction('pet-head')
       } else {
         live2dApiRef.current?.triggerMotion('tap_body')
+        recordInteraction('tap-body')
       }
       setTimeout(() => {
         try { live2dApiRef.current?.setExpression(0) } catch { /* ignore */ }
       }, 2500)
     } catch { /* ignore */ }
     showMessage(reaction, 3000)
-  }, [showMessage])
+  }, [showMessage, recordInteraction])
 
   useProactive(showMessage, settings.quietMode)
 
   // 内心想法气泡：偶尔显示云朵风格的内心独白（参考 Open-LLM-VTuber 的 inner thoughts）
-  useIdleThoughts(showInnerThought, { enabled: !settings.quietMode })
+  // v0.3.4：按当前 mood 选择对应心情的独白库
+  useIdleThoughts(showInnerThought, petState.mood, { enabled: !settings.quietMode })
 
   const handleDragStart = useCallback((): void => {
     isDraggingRef.current = true
