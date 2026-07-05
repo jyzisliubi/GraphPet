@@ -3,6 +3,7 @@ import { Application, Ticker } from 'pixi.js'
 import type { Live2DModel as Live2DModelType } from 'pixi-live2d-display'
 import { setMouthCallback } from '../services/ttsService'
 import { useLive2DAutoMotion } from '../hooks/useLive2DAutoMotion'
+import type { PetMood } from '../hooks/usePetState'
 
 /**
  * Live2D 画布组件
@@ -102,8 +103,8 @@ const MOTION_GROUP_ALIASES: Record<string, string[]> = {
   bye: ['bye', 'shake', 'Shake', 'FlickUp']
 }
 
-/** 闲置时随机选择的动作组优先级列表 */
-const IDLE_MOTION_GROUPS = [
+/** 闲置时随机选择的动作组优先级列表（默认 neutral） */
+const IDLE_MOTION_GROUPS_DEFAULT = [
   'idle',
   'Idle',
   'tap_head',
@@ -114,6 +115,22 @@ const IDLE_MOTION_GROUPS = [
   'sleep',
   'Sleep'
 ]
+
+/** 按 mood 调整闲置动作组优先级（前面的优先被选中） */
+const MOOD_IDLE_PRIORITY: Record<PetMood, string[]> = {
+  happy: ['tap_body', 'tapBody', 'tap_head', 'flickHead', 'idle', 'Idle'],
+  excited: ['flick', 'flickHead', 'FlickUp', 'tap_head', 'tap_body', 'idle', 'Idle'],
+  curious: ['thinking', 'tap_body', 'tapBody', 'tap_head', 'idle', 'Idle'],
+  bored: ['sigh', 'sleep', 'Sleep', 'idle', 'Idle'],
+  sleepy: ['sleep', 'Sleep', 'sigh', 'idle', 'Idle'],
+  sad: ['sad', 'shake', 'Shake', 'sigh', 'idle', 'Idle'],
+  neutral: IDLE_MOTION_GROUPS_DEFAULT
+}
+
+/** 根据 mood 获取闲置动作组优先级列表 */
+function getIdleMotionGroupsByMood(mood: PetMood): string[] {
+  return MOOD_IDLE_PRIORITY[mood] ?? IDLE_MOTION_GROUPS_DEFAULT
+}
 
 /** 闲置动作播放间隔：基础 8 秒 + 0~4 秒随机 */
 const IDLE_INTERVAL_MS = 8000
@@ -177,6 +194,8 @@ interface Live2DCanvasProps {
   onModelReady?: (api: Live2DCanvasAPI, position: ModelPosition) => void
   /** 模型加载失败回调 */
   onError?: (error: string) => void
+  /** 当前心情（来自 usePetState），影响闲置动作选择优先级 */
+  mood?: PetMood
 }
 
 // ======================== 组件实现 ========================
@@ -185,7 +204,8 @@ export default function Live2DCanvas({
   modelPath,
   modelFormat,
   onModelReady,
-  onError
+  onError,
+  mood = 'neutral'
 }: Live2DCanvasProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,6 +215,9 @@ export default function Live2DCanvas({
   const formatRef = useRef<'cubism2' | 'cubism4'>(modelFormat)
   const onModelReadyRef = useRef(onModelReady)
   const onErrorRef = useRef(onError)
+  // mood 用 ref 持有最新值，避免 mood 变化触发模型重新加载
+  const moodRef = useRef<PetMood>(mood)
+  moodRef.current = mood
 
   // 始终保持 ref 为最新回调，避免 effect 依赖陈旧闭包
   onModelReadyRef.current = onModelReady
@@ -247,6 +270,7 @@ export default function Live2DCanvas({
   /**
    * 调度下一次闲置动作
    * 递归调用自身实现循环，8~12 秒随机间隔
+   * v0.3.4：根据 moodRef 选择对应心情的优先动作组
    */
   const scheduleIdleMotion = useCallback((): void => {
     if (idleTimerRef.current) {
@@ -260,7 +284,9 @@ export default function Live2DCanvas({
         const motionManager = (m.internalModel as any).motionManager
         const definitions = motionManager.definitions as Record<string, unknown[]>
         const availableGroups = Object.keys(definitions || {})
-        const pickableGroups = IDLE_MOTION_GROUPS.filter((g) => availableGroups.includes(g))
+        // v0.3.4：按当前 mood 选择优先动作组列表
+        const idleGroups = getIdleMotionGroupsByMood(moodRef.current)
+        const pickableGroups = idleGroups.filter((g) => availableGroups.includes(g))
         if (pickableGroups.length > 0 && !motionManager.playing) {
           const group = randomFromArray(pickableGroups)
           const motions = definitions[group] as unknown[] | undefined

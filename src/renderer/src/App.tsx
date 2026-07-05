@@ -581,6 +581,7 @@ function AppInner(): JSX.Element {
         modelFormat={activeModelFormat || 'cubism2'}
         onModelReady={handleModelReady}
         onError={handleModelError}
+        mood={petState.mood}
       />
     )
   }
