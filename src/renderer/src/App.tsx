@@ -305,6 +305,24 @@ function AppInner(): JSX.Element {
     }
   }, [showMessage])
 
+  // 截屏喂食：截取主屏幕 → 走现有 feedFile 管道（后端 _parse_image_with_ollama 处理图片）
+  const handleFeedScreenshot = useCallback(async (): Promise<void> => {
+    showMessage('咔嚓！截屏中...', 2500)
+    try {
+      const result = await window.api.captureScreenshot()
+      if (!result.success || !result.filePath) {
+        showMessage('截屏失败：' + (result.error || '未知错误'), 5000)
+        return
+      }
+      showMessage('正在消化截屏内容...', 3000)
+      try { live2dApiRef.current?.triggerMotion('eat') } catch { /* ignore */ }
+      await feedFile(result.filePath)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      showMessage('截屏喂食失败：' + errMsg, 6000)
+    }
+  }, [showMessage, feedFile])
+
   const handleContextMenuAction = useCallback((action: string): void => {
     closeContextMenu()
     switch (action) {
@@ -320,6 +338,9 @@ function AppInner(): JSX.Element {
         break
       case 'feed-url':
         setUrlFeedDialogVisible(true)
+        break
+      case 'feed-screenshot':
+        void handleFeedScreenshot()
         break
       case 'settings':
         setSettingsVisible(true)
@@ -361,7 +382,7 @@ function AppInner(): JSX.Element {
         window.api.quit()
         break
     }
-  }, [closeContextMenu, handleBatchFeed, handleSpitLast, settings.quietMode, updateSettings, showMessage, createConversation, walking])
+  }, [closeContextMenu, handleBatchFeed, handleFeedScreenshot, handleSpitLast, settings.quietMode, updateSettings, showMessage, createConversation, walking])
 
   const handleSkinSelect = useCallback(
     (skinPath: string, skinFormat?: 'cubism2' | 'cubism4'): void => {

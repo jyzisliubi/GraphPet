@@ -11,7 +11,8 @@ import {
   Layout,
   LogOut,
   Plus,
-  Footprints
+  Footprints,
+  Camera
 } from 'lucide-react'
 
 // 右键菜单浮层组件（对应 Task 6）
@@ -64,6 +65,7 @@ const MENU_ITEMS: MenuItemDef[] = [
   { key: 'new-chat', icon: Plus, label: '新对话' },
   { key: 'feed-file', icon: Paperclip, label: '喂文件' },
   { key: 'feed-url', icon: Globe, label: '喂网页 URL' },
+  { key: 'feed-screenshot', icon: Camera, label: '截屏喂食' },
   { key: 'settings', icon: Settings, label: '设置', dividerBefore: true },
   { key: 'skin', icon: Shirt, label: '换皮肤' },
   { key: 'memory', icon: Brain, label: '我的记忆', dividerBefore: true },

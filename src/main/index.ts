@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, screen, desktopCapturer } from 'electron'
 import path from 'path'
 import { spawn, type ChildProcess } from 'child_process'
 import * as http from 'http'
 import * as fs from 'fs'
+import * as os from 'os'
 import { pathToFileURL } from 'url'
 
 app.commandLine.appendSwitch('--no-sandbox')
@@ -659,6 +660,35 @@ function registerIpcHandlers(): void {
     } catch (err) {
       console.error('[GraphPet] 打开文件对话框失败:', err)
       return []
+    }
+  })
+
+  // 截屏喂食：截取主屏幕，保存为临时 PNG 文件返回路径
+  // 前端拿到路径后调用 feedFile(filePath) 走现有喂食管道
+  // 后端 _parse_image_with_ollama 会用 Ollama vision 模型描述图片
+  ipcMain.handle('screenshot:capture', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 },
+        fetchWindowIcons: false
+      })
+      if (sources.length === 0) {
+        return { success: false, error: '没有可用的屏幕源' }
+      }
+      const source = sources[0]
+      const thumbnail = source.thumbnail
+      const pngBuffer = thumbnail.toPNG()
+      // 保存到系统临时目录
+      const tmpDir = os.tmpdir()
+      const fileName = `graphpet-screenshot-${Date.now()}.png`
+      const filePath = path.join(tmpDir, fileName)
+      fs.writeFileSync(filePath, pngBuffer)
+      console.log(`[GraphPet] 截屏已保存: ${filePath} (${pngBuffer.length} bytes)`)
+      return { success: true, filePath, fileSize: pngBuffer.length }
+    } catch (err) {
+      console.error('[GraphPet] 截屏失败:', err)
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
 

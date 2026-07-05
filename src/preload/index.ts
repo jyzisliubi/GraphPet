@@ -37,6 +37,7 @@ const IPC_CHANNELS = {
   SYSTEM_CHECK_OLLAMA: 'system:check-ollama',
   FEED_FILE_DIALOG: 'feed:file-dialog',
   APP_QUIT: 'app:quit',
+  SCREENSHOT_CAPTURE: 'screenshot:capture',
   PANEL_OPEN: 'panel:open',
   CHAT_OPEN: 'chat:open',
   CHAT_CLOSE: 'chat:close',
@@ -116,6 +117,11 @@ const api = {
   // 退出应用（Task 6 右键菜单"退出"项）
   quit: (): void => {
     ipcRenderer.send(IPC_CHANNELS.APP_QUIT)
+  },
+  // 截屏喂食：截取主屏幕，保存为临时 PNG 文件返回路径
+  // 前端拿到路径后调用 feedFile(filePath) 走现有喂食管道
+  captureScreenshot: (): Promise<{ success: boolean; filePath?: string; fileSize?: number; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_CAPTURE)
   },
   // 打开网页面板（Task 23）：通知主进程创建/聚焦独立 BrowserWindow，
   // route 可选，指定初始路由（'chat' | 'memory' | 'timeline' | 'files' | 'profile'）
