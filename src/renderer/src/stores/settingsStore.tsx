@@ -148,6 +148,15 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
     void loadSettings()
   }, [loadSettings])
 
+  // 监听跨窗口 settings:changed 事件（托盘菜单/其他窗口修改时同步本窗口）
+  useEffect(() => {
+    if (!window.api?.onSettingsChanged) return
+    const unsubscribe = window.api.onSettingsChanged((next) => {
+      dispatch({ type: 'set', settings: next })
+    })
+    return unsubscribe
+  }, [dispatch])
+
   // 主题切换：把 theme 写到 <html data-theme="..."> 触发 CSS 变量覆盖
   useEffect(() => {
     const t = settings.theme || 'dark'

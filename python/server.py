@@ -1947,6 +1947,7 @@ async def text_to_speech(req: TTSRequest):
     默认语音 zh-CN-XiaoyiNeural（晓伊，年轻女声，适合桌宠角色）。
 
     返回 audio/mpeg 流，前端可直接用 <audio> 或 Audio API 播放。
+    失败时返回 JSON + HTTP 500，前端按 content-type 判断错误。
     """
     try:
         import edge_tts
@@ -1960,9 +1961,15 @@ async def text_to_speech(req: TTSRequest):
         audio_buffer.seek(0)
         return StreamingResponse(audio_buffer, media_type="audio/mpeg")
     except ImportError:
-        return {"success": False, "error": "edge-tts 未安装，请运行 pip install edge-tts"}
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "edge-tts 未安装，请运行 pip install edge-tts"}
+        )
     except Exception as e:
-        return {"success": False, "error": f"TTS 合成失败: {type(e).__name__}: {e}"}
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"TTS 合成失败: {type(e).__name__}: {e}"}
+        )
 
 
 @app.get("/tts/voices")

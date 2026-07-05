@@ -52,7 +52,8 @@ const IPC_CHANNELS = {
   PET_WALK_TO: 'pet:walk-to',
   LIVE2D_IMPORT_MODEL: 'live2d:import-model',
   LIVE2D_LIST_IMPORTED: 'live2d:list-imported',
-  LIVE2D_DELETE_IMPORTED: 'live2d:delete-imported'
+  LIVE2D_DELETE_IMPORTED: 'live2d:delete-imported',
+  SETTINGS_CHANGED: 'settings:changed'
 } as const
 
 const api = {
@@ -93,6 +94,14 @@ const api = {
   // 并按 autoStart 同步系统开机自启项
   setSettings: (settings: AppSettings): Promise<void> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, settings)
+  },
+  // 监听设置变更（跨窗口同步）：托盘菜单/其他窗口修改设置时，主进程广播到此窗口
+  onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings): void => {
+      callback(settings)
+    }
+    ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, listener)
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.SETTINGS_CHANGED, listener) }
   },
   // 首次启动检测（Task 10）：graphpet_state.json 不存在视为首次启动
   isFirstRun: (): Promise<boolean> => {

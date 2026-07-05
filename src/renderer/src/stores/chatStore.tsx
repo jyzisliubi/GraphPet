@@ -57,8 +57,38 @@ function loadConversations(): Conversation[] {
 function saveConversations(conversations: Conversation[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
-  } catch {
+  } catch (e) {
+    // quota 超限或被禁用时记录日志，便于排查"对话丢失"问题
+    console.error('[chatStore] saveConversations 失败:', e)
   }
+}
+
+/**
+ * 防抖保存：流式回答中每秒可能触发数十次 conversations 变化，
+ * 全量 JSON.stringify + setItem 会阻塞主线程，防抖 500ms 合并写入。
+ * 模块级 timer 保证多次调用复用同一个防抖周期。
+ */
+let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let pendingConversationsRef: Conversation[] = []
+
+function saveConversationsDebounced(conversations: Conversation[]): void {
+  pendingConversationsRef = conversations
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
+  saveDebounceTimer = setTimeout(() => {
+    saveDebounceTimer = null
+    saveConversations(pendingConversationsRef)
+  }, 500)
+}
+
+// 窗口卸载时强制 flush 避免丢失最后一次未写入的改动
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    if (saveDebounceTimer) {
+      clearTimeout(saveDebounceTimer)
+      saveDebounceTimer = null
+      saveConversations(pendingConversationsRef)
+    }
+  })
 }
 
 function createEmptyConversation(): Conversation {
@@ -110,7 +140,7 @@ export function ChatStoreProvider({ children }: ChatStoreProviderProps): JSX.Ele
   }, [conversations, activeConversationId])
 
   useEffect(() => {
-    saveConversations(conversations)
+    saveConversationsDebounced(conversations)
   }, [conversations])
 
   useEffect(() => {

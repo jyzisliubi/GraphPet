@@ -108,7 +108,16 @@ export async function speakText(
     })
 
     if (!resp.ok) {
-      console.error('[TTS] 请求失败:', resp.status)
+      // 后端失败时返回 JSON（content-type: application/json），解析错误信息便于排查
+      let errMsg = `HTTP ${resp.status}`
+      try {
+        const ct = resp.headers.get('content-type') || ''
+        if (ct.includes('application/json')) {
+          const data = await resp.json()
+          if (data?.error) errMsg = data.error
+        }
+      } catch { /* ignore */ }
+      console.error('[TTS] 请求失败:', errMsg)
       currentOnEnded = null
       onEnded?.()
       return false

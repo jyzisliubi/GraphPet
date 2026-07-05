@@ -1364,6 +1364,12 @@ export default function ChatPanel({
     try {
       for await (const event of chatStream(trimmed, searchMode, historyForApi)) {
         if (activeConversationIdRef.current !== convId) {
+          // 用户切到其他对话，收尾当前 pendingMsg 避免永久 isStreaming: true
+          updateMessage(convId, assistantMsgId, {
+            content: accumulatedContent || '（已切换对话，回答中断）',
+            isStreaming: false,
+            isError: false
+          })
           break
         }
         switch (event.type) {
@@ -1432,8 +1438,12 @@ export default function ChatPanel({
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err)
       if (activeConversationIdRef.current === convId) {
+        // 保留已累积的部分回答，附加网络中断提示，避免用户丢失 LLM 已说一半的内容
+        const partialContent = accumulatedContent
+          ? `${accumulatedContent}\n\n---\n\n⚠️ 网络中断：${errMsg}`
+          : `出错了：${errMsg}`
         updateMessage(convId, assistantMsgId, {
-          content: `出错了：${errMsg}`,
+          content: partialContent,
           isError: true,
           isStreaming: false
         })

@@ -435,11 +435,16 @@ function buildTrayMenu(): Electron.Menu {
       click: (menuItem) => {
         const next = menuItem.checked
         const cur = readSettings()
-        writeSettings({ ...cur, quietMode: next })
-        // 通知渲染进程同步 UI
-        if (petWindow && !petWindow.isDestroyed()) {
-          petWindow.webContents.send('settings:changed', { ...cur, quietMode: next })
+        const updated = { ...cur, quietMode: next }
+        writeSettings(updated)
+        // 广播到所有窗口
+        const windows = [petWindow, chatWindow, webPanelWindow]
+        for (const w of windows) {
+          if (w && !w.isDestroyed()) {
+            try { w.webContents.send('settings:changed', updated) } catch { /* ignore */ }
+          }
         }
+        if (tray) tray.setContextMenu(buildTrayMenu())
       }
     },
     { type: 'separator' },
@@ -716,6 +721,17 @@ function registerIpcHandlers(): void {
     syncLlmConfigToBackend(settings)
     // 刷新托盘菜单（安静模式等勾选状态需要同步）
     if (tray) tray.setContextMenu(buildTrayMenu())
+    // 广播到所有窗口实现跨窗口同步（pet/chat/panel 共享同一份设置）
+    const windows = [petWindow, chatWindow, webPanelWindow]
+    for (const w of windows) {
+      if (w && !w.isDestroyed()) {
+        try {
+          w.webContents.send('settings:changed', settings)
+        } catch (e) {
+          console.error('[GraphPet] 广播 settings:changed 失败:', e)
+        }
+      }
+    }
   })
 
   // ============= 自定义 Live2D 模型导入 =============
@@ -726,16 +742,18 @@ function registerIpcHandlers(): void {
     return dir
   }
 
-  // 递归复制目录
-  function copyDirRecursive(src: string, dest: string): void {
-    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true })
-    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+  // 递归复制目录（异步，避免同步 IO 阻塞主进程 UI）
+  async function copyDirRecursiveAsync(src: string, dest: string): Promise<void> {
+    const fsp = fs.promises
+    await fsp.mkdir(dest, { recursive: true })
+    const entries = await fsp.readdir(src, { withFileTypes: true })
+    for (const entry of entries) {
       const srcPath = path.join(src, entry.name)
       const destPath = path.join(dest, entry.name)
       if (entry.isDirectory()) {
-        copyDirRecursive(srcPath, destPath)
+        await copyDirRecursiveAsync(srcPath, destPath)
       } else if (entry.isFile()) {
-        fs.copyFileSync(srcPath, destPath)
+        await fsp.copyFile(srcPath, destPath)
       }
     }
   }
@@ -752,9 +770,14 @@ function registerIpcHandlers(): void {
         return { success: false, error: '已取消选择' }
       }
       const selectedDir = result.filePaths[0]
-      const dirName = path.basename(selectedDir)
-      // 找模型文件
-      const files = fs.readdirSync(selectedDir)
+      // 路径穿越防护：规范化后必须仍指向原始 selectedDir 或其子目录
+      const normalizedSelected = path.resolve(selectedDir)
+      const dirName = path.basename(normalizedSelected)
+      if (!dirName || dirName === '.' || dirName === '..') {
+        return { success: false, error: '无效的目录名' }
+      }
+      // 找模型文件（异步 readdir）
+      const files = await fs.promises.readdir(selectedDir)
       const modelFile = files.find((f) => f.toLowerCase().endsWith('.model3.json')) ?? files.find((f) => f.toLowerCase().endsWith('.model.json'))
       if (!modelFile) {
         return { success: false, error: '所选目录中未找到 .model3.json 或 .model.json 文件' }
@@ -764,11 +787,17 @@ function registerIpcHandlers(): void {
       // 复制到 imported-models/<dirName>/
       const importedRoot = getImportedModelsDir()
       const destDir = path.join(importedRoot, dirName)
-      // 若已存在同名模型，覆盖
-      if (fs.existsSync(destDir)) {
-        fs.rmSync(destDir, { recursive: true, force: true })
+      // 路径穿越防护：destDir 必须在 importedRoot 下
+      const normalizedDest = path.resolve(destDir)
+      if (!normalizedDest.startsWith(path.resolve(importedRoot))) {
+        return { success: false, error: '目标路径越界' }
       }
-      copyDirRecursive(selectedDir, destDir)
+      // 若已存在同名模型，覆盖（异步 rm）
+      if (fs.existsSync(destDir)) {
+        await fs.promises.rm(destDir, { recursive: true, force: true })
+      }
+      // 异步复制避免阻塞主进程（Live2D 模型可能 50-200MB）
+      await copyDirRecursiveAsync(selectedDir, destDir)
       const modelPath = path.join(destDir, modelFile)
       const fileUrl = pathToFileURL(modelPath).href
       console.log(`[GraphPet] 已导入 Live2D 模型: ${dirName}/${modelFile} (${format})`)
@@ -1487,7 +1516,21 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (pythonProcess && pythonStartedByUs) {
     console.log('[GraphPet] 终止 Python 后端子进程')
-    pythonProcess.kill()
+    try {
+      // SIGTERM 优雅退出，给 Python 一点时间 flush LightRAG 写入
+      pythonProcess.kill()
+      // Windows 上 SIGTERM 等同 SIGKILL，但保留 fallback 兜底
+      // 若 2s 后仍存活则强制 kill（防止僵尸进程导致 kv_store 损坏）
+      setTimeout(() => {
+        if (pythonProcess && !pythonProcess.killed) {
+          try {
+            pythonProcess.kill('SIGKILL')
+          } catch { /* ignore */ }
+        }
+      }, 2000)
+    } catch (e) {
+      console.error('[GraphPet] kill Python 失败:', e)
+    }
     pythonProcess = null
   }
   if (tray) {

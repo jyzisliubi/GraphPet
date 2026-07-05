@@ -463,12 +463,17 @@ function AppInner(): JSX.Element {
 
   const handleFeedFile = useCallback(
     async (filePath: string, fileSize?: number): Promise<void> => {
+      // 喂食中拒绝重复触发，避免 abortController 被覆盖导致前一次喂食无法取消
+      if (feeding) {
+        showMessage('正在消化中，请稍等~')
+        return
+      }
       const result = await feedFile(filePath, fileSize)
       if (result) {
         setTriplePreview(result)
       }
     },
-    [feedFile]
+    [feedFile, feeding, showMessage]
   )
 
   const handleChatThinkingChange = useCallback((thinking: boolean): void => {
