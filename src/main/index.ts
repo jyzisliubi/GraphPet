@@ -21,8 +21,18 @@ try {
   gotTheLock = app.requestSingleInstanceLock()
 } catch {}
 if (!gotTheLock && process.env.NODE_ENV !== 'development') {
-  // 在沙箱/开发环境下不强制退出
+  // 生产环境没拿到锁，说明已有实例在跑，直接退出避免抢占 Python 端口
+  app.quit()
 }
+
+// 在已获锁的实例里监听：第二个实例启动时唤起主窗口
+app.on('second-instance', () => {
+  if (petWindow) {
+    if (petWindow.isMinimized()) petWindow.restore()
+    petWindow.show()
+    petWindow.focus()
+  }
+})
 
 /**
  * GraphPet Electron 主进程
@@ -796,6 +806,7 @@ let walkStepX = 0
 let walkStepY = 0
 let walkStepCount = 0
 let walkTotalSteps = 0
+let walkStepInterval: NodeJS.Timeout | null = null
 
 /**
  * 启动桌宠自由游走：每隔随机 8~20 秒选一个屏幕内随机目标点，
@@ -837,6 +848,10 @@ function stopPetWalk(): void {
     clearTimeout(walkTimer)
     walkTimer = null
   }
+  if (walkStepInterval) {
+    clearInterval(walkStepInterval)
+    walkStepInterval = null
+  }
 }
 
 /**
@@ -845,9 +860,10 @@ function stopPetWalk(): void {
  */
 function walkToTarget(targetX: number, targetY: number): void {
   if (!petWindow || petWindow.isDestroyed()) return
-  // 取消上一次未完成的步进
-  if (walkStepCount < walkTotalSteps) {
-    // 正在走，直接更新目标，让剩余步数按新方向重算
+  // 清理上一次未完成的步进 interval，避免多个 interval 并发驱动 setPosition 抖动
+  if (walkStepInterval) {
+    clearInterval(walkStepInterval)
+    walkStepInterval = null
   }
   const bounds = petWindow.getBounds()
   const dx = targetX - bounds.x
@@ -862,13 +878,19 @@ function walkToTarget(targetX: number, targetY: number): void {
   walkTargetX = targetX
   walkTargetY = targetY
 
-  const stepInterval = setInterval(() => {
+  walkStepInterval = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed()) {
-      clearInterval(stepInterval)
+      if (walkStepInterval) {
+        clearInterval(walkStepInterval)
+        walkStepInterval = null
+      }
       return
     }
     if (walkStepCount >= walkTotalSteps) {
-      clearInterval(stepInterval)
+      if (walkStepInterval) {
+        clearInterval(walkStepInterval)
+        walkStepInterval = null
+      }
       return
     }
     // 检查用户是否正在拖动窗口（如果在拖动，停止走动避免冲突）
@@ -878,7 +900,10 @@ function walkToTarget(targetX: number, targetY: number): void {
       petWindow.setPosition(Math.round(cur.x + walkStepX), Math.round(cur.y + walkStepY))
       walkStepCount++
     } catch {
-      clearInterval(stepInterval)
+      if (walkStepInterval) {
+        clearInterval(walkStepInterval)
+        walkStepInterval = null
+      }
     }
   }, 60)
 }

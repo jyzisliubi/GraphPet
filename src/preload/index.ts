@@ -171,6 +171,10 @@ const api = {
   // 停止桌宠走动
   petWalkStop: (): void => {
     ipcRenderer.send(IPC_CHANNELS.PET_WALK_STOP)
+  },
+  // 让桌宠走到指定坐标（带动画过渡）
+  petWalkTo: (x: number, y: number): void => {
+    ipcRenderer.send(IPC_CHANNELS.PET_WALK_TO, x, y)
   }
 }
 

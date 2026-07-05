@@ -1,0 +1,637 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d13" for="edge" attr.name="truncate" attr.type="string"/>
+<key id="d12" for="edge" attr.name="created_at" attr.type="long"/>
+<key id="d11" for="edge" attr.name="file_path" attr.type="string"/>
+<key id="d10" for="edge" attr.name="source_id" attr.type="string"/>
+<key id="d9" for="edge" attr.name="keywords" attr.type="string"/>
+<key id="d8" for="edge" attr.name="description" attr.type="string"/>
+<key id="d7" for="edge" attr.name="weight" attr.type="double"/>
+<key id="d6" for="node" attr.name="truncate" attr.type="string"/>
+<key id="d5" for="node" attr.name="created_at" attr.type="long"/>
+<key id="d4" for="node" attr.name="file_path" attr.type="string"/>
+<key id="d3" for="node" attr.name="source_id" attr.type="string"/>
+<key id="d2" for="node" attr.name="description" attr.type="string"/>
+<key id="d1" for="node" attr.name="entity_type" attr.type="string"/>
+<key id="d0" for="node" attr.name="entity_id" attr.type="string"/>
+<graph edgedefault="undirected"><node id="前端">
+  <data key="d0">前端</data>
+  <data key="d1">react+typescript+pixijs</data>
+  <data key="d2">前端</data>
+  <data key="d3">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d4">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d5">1783103879</data>
+  <data key="d6"></data>
+</node>
+<node id="后端">
+  <data key="d0">后端</data>
+  <data key="d1">pythonfastapi</data>
+  <data key="d2">0.0.1:8765</data>
+  <data key="d3">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d4">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d5">1783103879</data>
+  <data key="d6"></data>
+</node>
+<node id="知识图谱">
+  <data key="d0">知识图谱</data>
+  <data key="d3">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d2">后端与知识图谱在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d5">1783103879</data>
+  <data key="d6"></data>
+</node>
+<node id="Embedding">
+  <data key="d0">Embedding</data>
+  <data key="d3">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d2">知识图谱与Embedding在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d5">1783103879</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet是一个AI桌面宠物应用. So GraphPet 属于 AI? Actually GraphPet 是 AI桌面宠物应用. So GraphPet 使用 AI? Not exactly. We can say GraphPet 属于 AI. But we need source and target. Source">
+  <data key="d0">GraphPet是一个AI桌面宠物应用. So GraphPet 属于 AI? Actually GraphPet 是 AI桌面宠物应用. So GraphPet 使用 AI? Not exactly. We can say GraphPet 属于 AI. But we need source and target. Source</data>
+  <data key="d1">graphpet</data>
+  <data key="d2">Keywords: "属于". Description: GraphPet是AI桌面宠物应用.</data>
+  <data key="d3">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d4">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d5">1783187158</data>
+  <data key="d6"></data>
+</node>
+<node id="Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito 属于 Live2D? Actually Nito is a Live2D pet. So Nito 使用 Live2D. But better">
+  <data key="d0">Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito 属于 Live2D? Actually Nito is a Live2D pet. So Nito 使用 Live2D. But better</data>
+  <data key="d1">nito使用live2d</data>
+  <data key="d2">Or Nito "是" Live2D. Let's do Nito -&gt; Live2D, keywords "使用". Also Nito "拥有" 皮肤Ni-J, Nico, Nietzsche, Nipsilon. So Nito -&gt; Ni-J, Nito -&gt; Nico, Nito -&gt; Nietzsche, Nito -&gt; Nipsilon. Keywords: "拥有". Also</data>
+  <data key="d3">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d4">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d5">1783187158</data>
+  <data key="d6"></data>
+</node>
+<node id="知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet 使用 Docling, GraphPet 使用 LightRAG. Also Docling 解析 文件/URL. But we can say Docling 解析 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords">
+  <data key="d0">知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet 使用 Docling, GraphPet 使用 LightRAG. Also Docling 解析 文件/URL. But we can say Docling 解析 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords</data>
+  <data key="d1">解析</data>
+  <data key="d2">Also LightRAG "抽取" 三元组. So LightRAG -&gt; 三元组, keywords "抽取". Also三元组 "构建" 知识图谱. So三元组-&gt; 知识图谱, keywords "构建". Also GraphPet "使用" Docling, GraphPet "使用" LightRAG. Also GraphPet "使用" 三元组? Not.</data>
+  <data key="d3">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d4">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d5">1783187158</data>
+  <data key="d6"></data>
+</node>
+<node id="技术栈">
+  <data key="d0">技术栈</data>
+  <data key="d1">前端:react</data>
+  <data key="d2">技术栈</data>
+  <data key="d3">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d4">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d5">1783187158</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet 使用 Electron, React, Python FastAPI. So relationships">
+  <data key="d0">GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet 使用 Electron, React, Python FastAPI. So relationships</data>
+  <data key="d3">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d2">GraphPet是一个AI桌面宠物应用. So GraphPet "属于" AI? Actually GraphPet "是" AI桌面宠物应用. So GraphPet "使用" AI? Not exactly. We can say GraphPet "属于" AI. But we need source and target. Source与GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet "使用" Electron, React, Python FastAPI. So relationships在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d5">1783187158</data>
+  <data key="d6"></data>
+</node>
+<node id="Electron">
+  <data key="d0">Electron</data>
+  <data key="d1">technology</data>
+  <data key="d2">Electron</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="React">
+  <data key="d0">React</data>
+  <data key="d1">technology</data>
+  <data key="d2">React</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="TypeScript">
+  <data key="d0">TypeScript</data>
+  <data key="d1">technology</data>
+  <data key="d2">TypeScript</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Python">
+  <data key="d0">Python</data>
+  <data key="d1">technology</data>
+  <data key="d2">Python</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="FastAPI">
+  <data key="d0">FastAPI</data>
+  <data key="d1">technology</data>
+  <data key="d2">FastAPI</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="uvicorn">
+  <data key="d0">uvicorn</data>
+  <data key="d1">technology</data>
+  <data key="d2">uvicorn</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="LightRAG">
+  <data key="d0">LightRAG</data>
+  <data key="d1">technology</data>
+  <data key="d2">LightRAG</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Docling">
+  <data key="d0">Docling</data>
+  <data key="d1">technology</data>
+  <data key="d2">Docling</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="PixiJS">
+  <data key="d0">PixiJS</data>
+  <data key="d1">technology</data>
+  <data key="d2">PixiJS</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="pixi-live2d-display">
+  <data key="d0">pixi-live2d-display</data>
+  <data key="d1">technology</data>
+  <data key="d2">pixi-live2d-display</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="sentence-transformers">
+  <data key="d0">sentence-transformers</data>
+  <data key="d1">technology</data>
+  <data key="d2">sentence-transformers</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="BAAI/bge-small-zh-v1.5">
+  <data key="d0">BAAI/bge-small-zh-v1.5</data>
+  <data key="d1">technology</data>
+  <data key="d2">BAAI/bge-small-zh-v1.5</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Nito">
+  <data key="d0">Nito</data>
+  <data key="d1">作品</data>
+  <data key="d2">Could be Concept? But it's a role. Maybe Other or Concept. Let's classify as Concept (character).</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Ni-J">
+  <data key="d0">Ni-J</data>
+  <data key="d1">concept</data>
+  <data key="d2">Ni-J</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Nico">
+  <data key="d0">Nico</data>
+  <data key="d1">concept</data>
+  <data key="d2">Nico</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Nipsilon">
+  <data key="d0">Nipsilon</data>
+  <data key="d1">concept</data>
+  <data key="d2">Nipsilon</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="freellm">
+  <data key="d0">freellm</data>
+  <data key="d1">technology</data>
+  <data key="d2">Could be Organization? It's a provider. Let's classify as Organization? But it's a product. Maybe Technology. We'll use Technology.</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="DeepSeek">
+  <data key="d0">DeepSeek</data>
+  <data key="d1">technology</data>
+  <data key="d2">DeepSeek</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="智谱">
+  <data key="d0">智谱</data>
+  <data key="d1">technology</data>
+  <data key="d2">智谱</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Kimi">
+  <data key="d0">Kimi</data>
+  <data key="d1">technology</data>
+  <data key="d2">Kimi</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="硅基流动">
+  <data key="d0">硅基流动</data>
+  <data key="d1">technology</data>
+  <data key="d2">硅基流动</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="OpenAI">
+  <data key="d0">OpenAI</data>
+  <data key="d1">organization</data>
+  <data key="d2">OpenAI</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188984</data>
+  <data key="d6"></data>
+</node>
+<node id="Ollama">
+  <data key="d0">Ollama</data>
+  <data key="d1">technology</data>
+  <data key="d2">Ollama</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="edge-tts">
+  <data key="d0">edge-tts</data>
+  <data key="d1">technology</data>
+  <data key="d2">edge-tts</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="Web Speech API">
+  <data key="d0">Web Speech API</data>
+  <data key="d1">technology</data>
+  <data key="d2">Web Speech API</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="chatStore">
+  <data key="d0">chatStore</data>
+  <data key="d1">technology</data>
+  <data key="d2">chatStore</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="TTS">
+  <data key="d0">TTS</data>
+  <data key="d1">concept</data>
+  <data key="d2">But we can treat as Technology.</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="STT">
+  <data key="d0">STT</data>
+  <data key="d1">technology</data>
+  <data key="d2">STT</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="5姐妹皮肤">
+  <data key="d0">5姐妹皮肤</data>
+  <data key="d1">maybefeature</data>
+  <data key="d2">5姐妹皮肤</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet开发者Jay Z (source GraphPet, target Jay Z, keywords">
+  <data key="d0">GraphPet开发者Jay Z (source GraphPet, target Jay Z, keywords</data>
+  <data key="d1">开发者为</data>
+  <data key="d2">GraphPet开发者Jay Z (source GraphPet, target Jay Z, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用Electron (source GraphPet, target Electron, keywords">
+  <data key="d0">GraphPet使用Electron (source GraphPet, target Electron, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用Electron (source GraphPet, target Electron, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用React (source GraphPet, target React, keywords">
+  <data key="d0">GraphPet使用React (source GraphPet, target React, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用React (source GraphPet, target React, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用TypeScript (source GraphPet, target TypeScript, keywords">
+  <data key="d0">GraphPet使用TypeScript (source GraphPet, target TypeScript, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用TypeScript (source GraphPet, target TypeScript, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用Python (source GraphPet, target Python, keywords">
+  <data key="d0">GraphPet使用Python (source GraphPet, target Python, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用Python (source GraphPet, target Python, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用FastAPI (source GraphPet, target FastAPI, keywords">
+  <data key="d0">GraphPet使用FastAPI (source GraphPet, target FastAPI, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用FastAPI (source GraphPet, target FastAPI, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用uvicorn (source GraphPet, target uvicorn, keywords">
+  <data key="d0">GraphPet使用uvicorn (source GraphPet, target uvicorn, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用uvicorn (source GraphPet, target uvicorn, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用LightRAG (source GraphPet, target LightRAG, keywords">
+  <data key="d0">GraphPet使用LightRAG (source GraphPet, target LightRAG, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用LightRAG (source GraphPet, target LightRAG, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用Docling (source GraphPet, target Docling, keywords">
+  <data key="d0">GraphPet使用Docling (source GraphPet, target Docling, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用Docling (source GraphPet, target Docling, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用PixiJS (source GraphPet, target PixiJS, keywords">
+  <data key="d0">GraphPet使用PixiJS (source GraphPet, target PixiJS, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用PixiJS (source GraphPet, target PixiJS, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet使用pixi-live2d-display (source GraphPet, target pixi-live2d-display, keywords">
+  <data key="d0">GraphPet使用pixi-live2d-display (source GraphPet, target pixi-live2d-display, keywords</data>
+  <data key="d1">使用</data>
+  <data key="d2">GraphPet使用pixi-live2d-display (source GraphPet, target pixi-live2d-display, keywords</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="GraphPet">
+  <data key="d0">GraphPet</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d2">GraphPet与Jay Z在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="Jay Z">
+  <data key="d0">Jay Z</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d2">GraphPet与Jay Z在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<node id="HKU">
+  <data key="d0">HKU</data>
+  <data key="d3">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d2">LightRAG与HKU在同一文档中共现</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d5">1783188985</data>
+  <data key="d6"></data>
+</node>
+<edge source="前端" target="后端">
+  <data key="d7">1.0</data>
+  <data key="d8">前端与后端在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d11">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d12">1783103879</data>
+  <data key="d13"></data>
+</edge>
+<edge source="后端" target="知识图谱">
+  <data key="d7">1.0</data>
+  <data key="d8">后端与知识图谱在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d11">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d12">1783103879</data>
+  <data key="d13"></data>
+</edge>
+<edge source="知识图谱" target="Embedding">
+  <data key="d7">1.0</data>
+  <data key="d8">知识图谱与Embedding在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-becfaef075e677333a89b169a330e868-chunk-000</data>
+  <data key="d11">55bd4df3f3e5cf3f59901f74b4cd1d34</data>
+  <data key="d12">1783103879</data>
+  <data key="d13"></data>
+</edge>
+<edge source="GraphPet是一个AI桌面宠物应用. So GraphPet 属于 AI? Actually GraphPet 是 AI桌面宠物应用. So GraphPet 使用 AI? Not exactly. We can say GraphPet 属于 AI. But we need source and target. Source" target="GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet 使用 Electron, React, Python FastAPI. So relationships">
+  <data key="d7">1.0</data>
+  <data key="d8">GraphPet是一个AI桌面宠物应用. So GraphPet "属于" AI? Actually GraphPet "是" AI桌面宠物应用. So GraphPet "使用" AI? Not exactly. We can say GraphPet "属于" AI. But we need source and target. Source与GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet "使用" Electron, React, Python FastAPI. So relationships在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d11">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d12">1783187158</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito 属于 Live2D? Actually Nito is a Live2D pet. So Nito 使用 Live2D. But better" target="GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet 使用 Electron, React, Python FastAPI. So relationships">
+  <data key="d7">1.0</data>
+  <data key="d8">GraphPet是一个AI桌面宠物应用，由Electron + React + Python FastAPI构建. So GraphPet "使用" Electron, React, Python FastAPI. So relationships与Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito "属于" Live2D? Actually Nito is a Live2D pet. So Nito "使用" Live2D. But better在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d11">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d12">1783187158</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito 属于 Live2D? Actually Nito is a Live2D pet. So Nito 使用 Live2D. But better" target="知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet 使用 Docling, GraphPet 使用 LightRAG. Also Docling 解析 文件/URL. But we can say Docling 解析 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords">
+  <data key="d7">1.0</data>
+  <data key="d8">Live2D桌宠Nito，支持五姐妹皮肤切换(Nito/Ni-J/Nico/Nietzsche/Nipsilon)。 So Nito "属于" Live2D? Actually Nito is a Live2D pet. So Nito "使用" Live2D. But better与知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet "使用" Docling, GraphPet "使用" LightRAG. Also Docling "解析" 文件/URL. But we can say Docling "解析" 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d11">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d12">1783187158</data>
+  <data key="d13"></data>
+</edge>
+<edge source="知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet 使用 Docling, GraphPet 使用 LightRAG. Also Docling 解析 文件/URL. But we can say Docling 解析 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords" target="技术栈">
+  <data key="d7">1.0</data>
+  <data key="d8">知识图谱喂食：用户拖放文件/URL，通过Docling解析+ LightRAG抽取三元组建图谱. So GraphPet "使用" Docling, GraphPet "使用" LightRAG. Also Docling "解析" 文件/URL. But we can say Docling "解析" 文件/URL. But file/URL is concept. So Docling -&gt; 文件, Docling -&gt; URL. Keywords与技术栈在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-fa93a3e6efcd35bd76359cc0607e3fcd-chunk-000</data>
+  <data key="d11">d70838af803944de1d60fed2045ca8fc</data>
+  <data key="d12">1783187158</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Electron" target="Jay Z">
+  <data key="d7">1.0</data>
+  <data key="d8">Jay Z与Electron在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Electron" target="React">
+  <data key="d7">1.0</data>
+  <data key="d8">Electron与React在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="React" target="TypeScript">
+  <data key="d7">1.0</data>
+  <data key="d8">React与TypeScript在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="TypeScript" target="Python">
+  <data key="d7">1.0</data>
+  <data key="d8">TypeScript与Python在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Python" target="FastAPI">
+  <data key="d7">1.0</data>
+  <data key="d8">Python与FastAPI在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="FastAPI" target="uvicorn">
+  <data key="d7">1.0</data>
+  <data key="d8">FastAPI与uvicorn在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="uvicorn" target="LightRAG">
+  <data key="d7">1.0</data>
+  <data key="d8">uvicorn与LightRAG在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="LightRAG" target="HKU">
+  <data key="d7">1.0</data>
+  <data key="d8">LightRAG与HKU在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="Docling" target="HKU">
+  <data key="d7">1.0</data>
+  <data key="d8">HKU与Docling在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+<edge source="GraphPet" target="Jay Z">
+  <data key="d7">1.0</data>
+  <data key="d8">GraphPet与Jay Z在同一文档中共现</data>
+  <data key="d9">相关</data>
+  <data key="d10">doc-cf110225a0ca984e26e633c05b1ca809-chunk-000</data>
+  <data key="d11">43ec0f1c13199f153062306ce327c8cb</data>
+  <data key="d12">1783188985</data>
+  <data key="d13"></data>
+</edge>
+</graph></graphml>

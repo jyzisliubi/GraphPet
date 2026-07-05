@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, type CSSProperties } from 'react'
-import { Application, Ticker } from 'pixi.js'
+import * as PIXI from 'pixi.js'
 import type { Live2DModel as Live2DModelType } from 'pixi-live2d-display'
 import { setMouthCallback } from '../services/ttsService'
 import { useLive2DAutoMotion } from '../hooks/useLive2DAutoMotion'
@@ -350,7 +350,7 @@ export default function Live2DCanvas({
 
     // 创建 PIXI 应用
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const app: any = new Application({
+    const app: any = new PIXI.Application({
       width: VIEW_WIDTH,
       height: VIEW_HEIGHT,
       backgroundAlpha: 0,
@@ -361,9 +361,9 @@ export default function Live2DCanvas({
     appRef.current = app
     container.appendChild(app.view)
 
-    // 暴露 PIXI 到全局（部分 Live2D 运行时依赖全局 PIXI）
+    // 暴露 PIXI 命名空间到全局（pixi-live2d-display 部分内部访问 window.PIXI.xxx）
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(window as any).PIXI = Application
+    ;(window as any).PIXI = PIXI
 
     const initModel = async (): Promise<void> => {
       try {
@@ -373,7 +373,7 @@ export default function Live2DCanvas({
           Live2DModel: any
         }
 
-        Live2DModel.registerTicker(Ticker)
+        Live2DModel.registerTicker(PIXI.Ticker)
         const model = (await Live2DModel.from(modelPath)) as Live2DModelType
 
         // 组件已卸载则销毁模型，避免内存泄漏

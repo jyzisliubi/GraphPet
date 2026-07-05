@@ -176,6 +176,9 @@ _proactive_scheduler = _scheduler.ProactiveScheduler()
 # LLM可用性全局标志：None=未检查，True=可用，False=上次检查失败（但仍可重试
 _llm_available: Optional[bool] = None
 _llm_check_lock = threading.Lock()
+# LLM 失败冷却期（线程安全读写）：失败后 30 秒内不再尝试，避免雪崩
+_llm_fail_cooldown_until: float = 0.0
+_llm_fail_cooldown_lock = threading.Lock()
 _llm_last_fail_time = 0  # 上次失败时间戳，用于控制重试间隔
 # 单例线程池（避免每次调用创建/销毁线程池导致资源泄漏和锁问题）。
 # max_workers=4：允许喂食（KG抽取+索引）与聊天 LLM 调用并发，避免互相阻塞。
@@ -484,9 +487,11 @@ def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.
     Returns:
         LLM回答文本，失败/超时/不可用返回None
     """
-    global _llm_available
+    global _llm_available, _llm_fail_cooldown_until
     import time
-    cooldown = getattr(_call_llm_chat, '_fail_cooldown', 0)
+    # 线程安全读取冷却截止时间
+    with _llm_fail_cooldown_lock:
+        cooldown = _llm_fail_cooldown_until
     now = time.time()
     if now < cooldown:
         return None
@@ -503,19 +508,23 @@ def _call_llm_chat(system_prompt: str, user_prompt: str, temperature: float = 0.
     try:
         future = _llm_executor.submit(_do_call)
         result = future.result(timeout=timeout)
-        _call_llm_chat._fail_cooldown = 0
+        # 成功：清空冷却期
+        with _llm_fail_cooldown_lock:
+            _llm_fail_cooldown_until = 0.0
         if _llm_available is not True:
             _llm_available = True
             print("[GraphPet] LLM已恢复可用", flush=True)
         return result
     except concurrent.futures.TimeoutError:
         print(f"[GraphPet] LLM调用超时({timeout}s)，进入冷却期", file=_sys.stderr, flush=True)
-        _call_llm_chat._fail_cooldown = now + 30
+        with _llm_fail_cooldown_lock:
+            _llm_fail_cooldown_until = now + 30
         _llm_available = False
         return None
     except Exception as e:
         print(f"[GraphPet] LLM闲聊调用失败: {type(e).__name__}: {e}，进入冷却期", file=_sys.stderr, flush=True)
-        _call_llm_chat._fail_cooldown = now + 30
+        with _llm_fail_cooldown_lock:
+            _llm_fail_cooldown_until = now + 30
         _llm_available = False
         return None
 

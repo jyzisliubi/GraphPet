@@ -1338,7 +1338,7 @@ export default function ChatPanel({
     const historyForApi: ChatHistoryMessage[] = historyMessages
       .slice(-20)
       .map(m => ({
-        role: m.role === 'assistant' ? 'nito' as const : 'user' as const,
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as ChatHistoryMessage['role'],
         content: m.content
       }))
 
@@ -1525,7 +1525,8 @@ export default function ChatPanel({
     const files = e.target.files
     if (!files || files.length === 0 || !onFeedFile) return
     const file = files[0]
-    const filePath = (file as File & { path?: string }).path
+    // Electron 31+ sandbox 下 file.path 已废弃，改用 webUtils.getPathForFile
+    const filePath = window.api?.getPathForFile?.(file)
     if (filePath) {
       try {
         await onFeedFile(filePath)
@@ -1554,7 +1555,8 @@ export default function ChatPanel({
     const files = e.dataTransfer.files
     if (files && files.length > 0) {
       const file = files[0]
-      const filePath = (file as File & { path?: string }).path
+      // Electron 31+ sandbox 下 file.path 已废弃，改用 webUtils.getPathForFile
+      const filePath = window.api?.getPathForFile?.(file)
       if (filePath) {
         void Promise.resolve(onFeedFile(filePath)).then(() => {
           showFeedToast(`已喂给Nito：${file.name}`)

@@ -14,6 +14,20 @@ let mouthAnimFrame: number | null = null
 let mouthCallback: ((open: number) => void) | null = null
 /** 当前播放的结束回调（speakText 设置，stopSpeaking 触发） */
 let currentOnEnded: (() => void) | null = null
+/** 模块级单例 AudioContext（避免每次 speakText new 一个，Chromium 限 6 个上限） */
+let audioCtxSingleton: AudioContext | null = null
+
+/** 获取/创建单例 AudioContext */
+function getAudioCtx(): AudioContext {
+  if (!audioCtxSingleton) {
+    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    audioCtxSingleton = new Ctor()
+  }
+  if (audioCtxSingleton.state === 'suspended') {
+    void audioCtxSingleton.resume()
+  }
+  return audioCtxSingleton
+}
 
 /** 设置口型回调（Live2DCanvas 订阅，音频播放时驱动嘴部） */
 export function setMouthCallback(cb: ((open: number) => void) | null): void {
@@ -85,9 +99,9 @@ export async function speakText(
     const audio = new Audio(url)
     currentAudio = audio
 
-    // 口型同步：用 AnalyserNode 读取音量驱动嘴部
+    // 口型同步：用 AnalyserNode 读取音量驱动嘴部（复用单例 AudioContext 避免 6 个上限泄漏）
     try {
-      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+      const audioCtx = getAudioCtx()
       const source = audioCtx.createMediaElementSource(audio)
       const analyser = audioCtx.createAnalyser()
       analyser.fftSize = 256

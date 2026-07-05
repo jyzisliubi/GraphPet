@@ -1,0 +1,53 @@
+{
+  "doc-becfaef075e677333a89b169a330e868": {
+    "content": "GraphPet 是一个基于 Electron 和 Python 的 AI 桌面宠物应用。\n\n技术架构:\n\n- 前端: React + TypeScript + PixiJS, 使用 pixi-live2d-display 渲染 Live2D 模型\n- 后端: Python FastAPI, 运行在 127.0.0.1:8765\n- 知识图谱: Docling 文档解析 + LightRAG (港大HKU版本) 实现 RAG 问答\n- Embedding: sentence-transformers + BAAI/bge-small-zh-v1.5\n\nNito 是 Live2D 桌宠角色, 有五姐妹差分: Nito, Ni-J, Nico, Nietzsche, Nipsilon。\n\nGitHub 仓库: jyzisliubi/GraphPet\n\n# timestamp 1783103778.8142369",
+    "file_path": "55bd4df3f3e5cf3f59901f74b4cd1d34",
+    "parse_format": "raw",
+    "content_hash": "6679e5d43eb458c3f35f6b5d9a4d1c4e",
+    "chunk_options": {
+      "chunk_token_size": 800,
+      "fixed_token": {
+        "split_by_character": null,
+        "split_by_character_only": false,
+        "chunk_overlap_token_size": 100
+      }
+    },
+    "create_time": 1783103827,
+    "update_time": 1783103827,
+    "_id": "doc-becfaef075e677333a89b169a330e868"
+  },
+  "doc-fa93a3e6efcd35bd76359cc0607e3fcd": {
+    "content": "GraphPet 测试文件\n\nGraphPet 是一个 AI 桌面宠物应用，由 Electron + React + Python FastAPI 构建。 核心特性：\n\n1. Live2D 桌宠 Nito，支持五姐妹皮肤切换（Nito/Ni-J/Nico/Nietzsche/Nipsilon）\n2. 知识图谱喂食：用户拖放文件/URL，通过 Docling 解析 + LightRAG 抽取三元组建图谱\n3. 多 LLM 支持：默认使用 freellm（Pollinations 免Key），可配置 DeepSeek/智谱/Kimi/OpenAI/Ollama\n4. TTS 语音：edge-tts 免费合成，支持 Live2D 口型同步\n5. STT 语音输入：浏览器 Web Speech API\n6. 桌宠自由走动：右键开启后 8-20s 随机移动\n\n技术栈：\n\n- 前端：React 18 + TypeScript 5.5 + PixiJS 6.5 + pixi-live2d-display\n- 后端：Python FastAPI + LightRAG 1.5.0 + Docling 2.0 + sentence-transformers (BAAI/bge-small-zh-v1.5)\n- 桥接：graphpet\\_rag\\_bridge.py 异步包装 LightRAG，run\\_coroutine\\_threadsafe 暴露同步接口",
+    "file_path": "d70838af803944de1d60fed2045ca8fc",
+    "parse_format": "raw",
+    "content_hash": "e8976f87c2c15092f53e575b06cfc431",
+    "chunk_options": {
+      "chunk_token_size": 800,
+      "fixed_token": {
+        "split_by_character": null,
+        "split_by_character_only": false,
+        "chunk_overlap_token_size": 100
+      }
+    },
+    "create_time": 1783187139,
+    "update_time": 1783187139,
+    "_id": "doc-fa93a3e6efcd35bd76359cc0607e3fcd"
+  },
+  "doc-cf110225a0ca984e26e633c05b1ca809": {
+    "content": "GraphPet 是一个开源的 AI 桌面宠物项目，由 Jay Z 开发。\n\n核心架构：\n\n- 前端使用 Electron 31 + React 18 + TypeScript 5.5\n- 后端使用 Python FastAPI + uvicorn\n- 知识图谱基于 LightRAG（港大 HKU）+ Docling 文档解析\n- Live2D 渲染使用 PixiJS 6.5 + pixi-live2d-display\n- Embedding 用 sentence-transformers + BAAI/bge-small-zh-v1.5\n\n5 个 Nito 姐妹角色：\n\n- Nito：默认皮肤，粉色头发，黑色贝雷帽\n- Ni-J：电子音乐风\n- Nico：温柔可爱风\n- Nietzsche：哲学家风\n- Nipsilon：极客风\n\n支持的 LLM Provider：\n\n- freellm（默认，零配置，Pollinations 免Key）\n- DeepSeek、智谱、Kimi、硅基流动、OpenAI、Ollama\n- 支持 8 种预设 provider + 自定义 OpenAI 兼容接口\n\n特性清单：\n\n1. 拖放文件喂食（支持 PDF/Word/网页/图片）\n2. URL 喂食（Docling HTML converter）\n3. 知识图谱可视化（手写 SVG 力导向图）\n4. 多轮对话（chatStore + 滑动窗口 20 轮）\n5. TTS 语音播报（edge-tts 免费）\n6. STT 语音输入（Web Speech API）\n7. 桌宠自由走动（右键开启，8-20s 随机移动）\n8. 5 姐妹皮肤切换\n9. 主动消息（基于知识图谱的 trivia）\n10. 成长系统（智力等级 + 亲密度 + 性格演化）",
+    "file_path": "43ec0f1c13199f153062306ce327c8cb",
+    "parse_format": "raw",
+    "content_hash": "6a48a8ec54e83f329b0a82c7945da77c",
+    "chunk_options": {
+      "chunk_token_size": 800,
+      "fixed_token": {
+        "split_by_character": null,
+        "split_by_character_only": false,
+        "chunk_overlap_token_size": 100
+      }
+    },
+    "create_time": 1783188934,
+    "update_time": 1783188934,
+    "_id": "doc-cf110225a0ca984e26e633c05b1ca809"
+  }
+}

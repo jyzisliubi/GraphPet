@@ -173,7 +173,8 @@ function AppInner(): JSX.Element {
       const files = e.dataTransfer?.files
       if (files && files.length > 0 && !anyOverlayVisible && !isDraggingRef.current) {
         const file = files[0]
-        const filePath = (file as File & { path?: string }).path
+        // Electron 31+ sandbox 下 file.path 已废弃，改用 webUtils.getPathForFile
+        const filePath = window.api.getPathForFile(file)
         if (filePath) {
           void handleFeedFile(filePath, file.size)
         }

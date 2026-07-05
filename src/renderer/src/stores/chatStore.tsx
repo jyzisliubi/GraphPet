@@ -89,22 +89,15 @@ interface ChatStoreProviderProps {
 }
 
 export function ChatStoreProvider({ children }: ChatStoreProviderProps): JSX.Element {
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
+  // 一次性加载，避免两个 useState 各自调 loadConversations 重复读 localStorage
+  const [initialLoaded] = useState(() => {
     const loaded = loadConversations()
-    if (loaded.length === 0) {
-      return [createEmptyConversation()]
-    }
-    return trimConversations(loaded)
+    const sorted = sortConversations(loaded)
+    return { conversations: loaded.length === 0 ? [createEmptyConversation()] : trimConversations(loaded), activeId: sorted.length > 0 ? sorted[0].id : null }
   })
+  const [conversations, setConversations] = useState<Conversation[]>(() => initialLoaded.conversations)
 
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
-    const loaded = loadConversations()
-    if (loaded.length > 0) {
-      const sorted = sortConversations(loaded)
-      return sorted[0].id
-    }
-    return null
-  })
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => initialLoaded.activeId)
 
   useEffect(() => {
     const trimmed = trimConversations(conversations)

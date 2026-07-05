@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GraphPet Discussions
+    url: https://github.com/jyzisliubi/GraphPet/discussions
+    about: 关于使用问题、想法讨论、新手提问请到 Discussions
+  - name: 📖 文档
+    url: https://github.com/jyzisliubi/GraphPet#readme
+    about: 阅读 README 了解功能与快速上手
