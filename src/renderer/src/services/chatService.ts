@@ -148,7 +148,8 @@ export async function chat(
       sources: Array.isArray(raw.sources) ? (raw.sources as ChatSource[]) : [],
       pipeline_info: raw.pipeline_info ?? {},
       message: raw.message ?? '',
-      error: raw.error ?? null
+      error: raw.error ?? null,
+      emotion: raw.emotion ?? 'neutral'
     }
   } catch (err) {
     throw new Error(

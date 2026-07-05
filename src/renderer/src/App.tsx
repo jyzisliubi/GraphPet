@@ -21,6 +21,7 @@ import { useLive2DModel } from './hooks/useLive2DModel'
 import { useBubble } from './hooks/useBubble'
 import { useFeed } from './hooks/useFeed'
 import { useProactive } from './hooks/useProactive'
+import { useIdleThoughts } from './hooks/useIdleThoughts'
 import { BubbleProvider } from './stores/bubbleStore'
 import { SettingsProvider, useSettings } from './stores/settingsStore'
 import { ChatStoreProvider, useChatStore } from './stores/chatStore'
@@ -62,7 +63,7 @@ function AppInner(): JSX.Element {
   const [activeModelFormat, setActiveModelFormat] = useState<'cubism2' | 'cubism4' | null>(null)
   const live2dApiRef = useRef<Live2DCanvasAPI | null>(null)
   const [modelHeadY, setModelHeadY] = useState<number>(0)
-  const { bubbleProps, showMessage } = useBubble()
+  const { bubbleProps, showMessage, showInnerThought } = useBubble()
   const { settings, saveSettings, updateSettings } = useSettings()
   const { createConversation } = useChatStore()
 
@@ -497,6 +498,9 @@ function AppInner(): JSX.Element {
   }, [showMessage])
 
   useProactive(showMessage, settings.quietMode)
+
+  // 内心想法气泡：偶尔显示云朵风格的内心独白（参考 Open-LLM-VTuber 的 inner thoughts）
+  useIdleThoughts(showInnerThought, { enabled: !settings.quietMode })
 
   const handleDragStart = useCallback((): void => {
     isDraggingRef.current = true

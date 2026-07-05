@@ -33,6 +33,8 @@ export interface BubbleProps {
   anchorTop?: number
   /** 是否显示思考气泡（带动画的"💭 思考中..."） */
   isThinking?: boolean
+  /** 是否为内心想法气泡（云朵风格，斜体淡色，区别于正常发言） */
+  isInnerThought?: boolean
 }
 
 /** 气泡样式 CSS（含 ::before 三角箭头 + 淡入淡出 transition） */
@@ -111,6 +113,23 @@ const BUBBLE_CSS = `
 .graphpet-bubble--thinking {
   padding: 8px 14px;
   font-size: 13px;
+}
+/* 内心想法气泡样式：云朵风格，斜体淡色，圆角更大 */
+.graphpet-bubble--inner-thought {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px dashed rgba(129, 140, 248, 0.5);
+  color: #a1a1aa;
+  font-style: italic;
+  font-size: 12px;
+  border-radius: 18px;
+  padding: 8px 14px;
+  max-width: 240px;
+}
+.graphpet-bubble--inner-thought::before {
+  border-top-color: rgba(99, 102, 241, 0.12);
+}
+.graphpet-bubble--inner-thought::after {
+  border-top-color: rgba(129, 140, 248, 0.5);
 }
 .graphpet-bubble-thinking-dots {
   display: inline-flex;
@@ -204,7 +223,8 @@ export default function Bubble({
   onClose,
   position = 'top',
   anchorTop,
-  isThinking = false
+  isThinking = false,
+  isInnerThought = false
 }: BubbleProps): JSX.Element | null {
   const [shouldRender, setShouldRender] = useState<boolean>(false)
   const [isVisible, setIsVisible] = useState<boolean>(false)
@@ -236,6 +256,7 @@ export default function Bubble({
     position === 'bottom' ? 'graphpet-bubble--bottom' : 'graphpet-bubble--top'
   const visibilityClass = isVisible ? 'graphpet-bubble--visible' : 'graphpet-bubble--hidden'
   const thinkingClass = isThinking ? ' graphpet-bubble--thinking' : ''
+  const innerThoughtClass = isInnerThought ? ' graphpet-bubble--inner-thought' : ''
 
   const handleTransitionEnd = (): void => {
     if (!visible && !isThinking) {
@@ -281,7 +302,7 @@ export default function Bubble({
 
   return (
     <div
-      className={`graphpet-bubble ${positionClass}${thinkingClass} ${visibilityClass}`}
+      className={`graphpet-bubble ${positionClass}${thinkingClass}${innerThoughtClass} ${visibilityClass}`}
       style={bubbleStyle}
       onClick={handleClick}
       onTransitionEnd={handleTransitionEnd}

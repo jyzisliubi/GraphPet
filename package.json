@@ -1,6 +1,6 @@
 {
   "name": "graphpet",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "GraphPet - 🐾 你的AI桌面宠物，用知识图谱记住一切。喂文件学习知识，Live2D互动陪伴",
   "main": "out/main/index.js",
   "author": "Jay Z <3364415961@qq.com>",
@@ -110,10 +110,22 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "assets/icon.png",
-      "category": "public.app-category.entertainment"
+      "category": "public.app-category.entertainment",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null,
+      "signIgnore": [
+        "node_modules/.cache"
+      ]
     },
     "linux": {
       "target": [

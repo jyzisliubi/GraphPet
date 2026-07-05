@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, type CSSProperties } from 're
 import { Application, Ticker } from 'pixi.js'
 import type { Live2DModel as Live2DModelType } from 'pixi-live2d-display'
 import { setMouthCallback } from '../services/ttsService'
+import { useLive2DAutoMotion } from '../hooks/useLive2DAutoMotion'
 
 /**
  * Live2D 画布组件
@@ -204,6 +205,9 @@ export default function Live2DCanvas({
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [fadeIn, setFadeIn] = useState<boolean>(false)
+
+  // 自动生命感：auto blink + auto look at + idle eye movement
+  useLive2DAutoMotion(modelRef, { enabled: !loading && !error })
 
   /**
    * 内部触发动作实现
