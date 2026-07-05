@@ -1179,8 +1179,8 @@ export default function ChatPanel({
   const loadingRef = useRef<boolean>(false)
   const activeConversationIdRef = useRef<string | null>(activeConversationId)
   // 用 ref 持有最新 messages，避免 handleSend 把 messages 列入 deps 导致每条消息都重建
+  // 注意：messages 变量在下方声明，这里只创建 ref，赋值放在 messages 声明之后避免 TDZ
   const messagesDataRef = useRef<readonly StoreChatMessage[]>([])
-  messagesDataRef.current = messages
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId
@@ -1202,6 +1202,8 @@ export default function ChatPanel({
   }, [conversations, activeConversationId])
 
   const messages = activeConversation?.messages || []
+  // 在 messages 声明后同步到 ref，供 handleSend 读取最新值（避免 deps 重建）
+  messagesDataRef.current = messages
 
   const showFeedToast = (msg: string): void => {
     setToast(msg)
