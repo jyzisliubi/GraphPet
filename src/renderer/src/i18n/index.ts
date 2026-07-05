@@ -127,6 +127,10 @@ const zhDict: Record<string, string> = {
   'menu.quiet_mode': '安静模式',
   'menu.hide_pet': '隐藏宠物',
   'menu.quit': '退出',
+  'menu.memory': '我的记忆',
+  'menu.spit_last': '吐掉最近吃的',
+  'menu.open_panel': '打开网页面板',
+  'menu.coming_soon': '敬请期待',
 
   // 设置面板
   'settings.title': '设置',
@@ -216,6 +220,10 @@ const enDict: Record<string, string> = {
   'menu.quiet_mode': 'Quiet Mode',
   'menu.hide_pet': 'Hide Pet',
   'menu.quit': 'Quit',
+  'menu.memory': 'My Memory',
+  'menu.spit_last': 'Spit Out Last',
+  'menu.open_panel': 'Open Web Panel',
+  'menu.coming_soon': 'Coming Soon',
 
   // Settings
   'settings.title': 'Settings',

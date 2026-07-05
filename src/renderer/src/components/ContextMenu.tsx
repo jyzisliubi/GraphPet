@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import {
   MessageCircle,
@@ -14,6 +14,7 @@ import {
   Footprints,
   Camera
 } from 'lucide-react'
+import { useT } from '../i18n'
 
 // 右键菜单浮层组件（对应 Task 6）
 //
@@ -48,8 +49,8 @@ interface MenuItemDef {
   key: string
   /** 图标组件（lucide-react） */
   icon: typeof MessageCircle
-  /** 菜单项文案 */
-  label: string
+  /** i18n 翻译 key */
+  labelKey: string
   /** 是否禁用（Phase 未实现的阶段） */
   disabled?: boolean
   /** 是否在该项之前渲染分隔线 */
@@ -61,18 +62,18 @@ interface MenuItemDef {
 // "我的记忆"打开网页面板（知识图谱/记忆文件）
 // 分组分隔：[聊天/喂文件/喂网页 URL] | [设置/换皮肤] | [我的记忆/吐掉最近吃的/打开网页面板] | [退出]
 const MENU_ITEMS: MenuItemDef[] = [
-  { key: 'chat', icon: MessageCircle, label: '聊天' },
-  { key: 'new-chat', icon: Plus, label: '新对话' },
-  { key: 'feed-file', icon: Paperclip, label: '喂文件' },
-  { key: 'feed-url', icon: Globe, label: '喂网页 URL' },
-  { key: 'feed-screenshot', icon: Camera, label: '截屏喂食' },
-  { key: 'settings', icon: Settings, label: '设置', dividerBefore: true },
-  { key: 'skin', icon: Shirt, label: '换皮肤' },
-  { key: 'memory', icon: Brain, label: '我的记忆', dividerBefore: true },
-  { key: 'spit-last', icon: Trash2, label: '吐掉最近吃的' },
-  { key: 'web', icon: Layout, label: '打开网页面板' },
-  { key: 'walk-start', icon: Footprints, label: '开始走动', dividerBefore: true },
-  { key: 'exit', icon: LogOut, label: '退出', dividerBefore: true }
+  { key: 'chat', icon: MessageCircle, labelKey: 'menu.chat' },
+  { key: 'new-chat', icon: Plus, labelKey: 'menu.new_chat' },
+  { key: 'feed-file', icon: Paperclip, labelKey: 'menu.feed_file' },
+  { key: 'feed-url', icon: Globe, labelKey: 'menu.feed_url' },
+  { key: 'feed-screenshot', icon: Camera, labelKey: 'menu.feed_screenshot' },
+  { key: 'settings', icon: Settings, labelKey: 'menu.settings', dividerBefore: true },
+  { key: 'skin', icon: Shirt, labelKey: 'menu.change_skin' },
+  { key: 'memory', icon: Brain, labelKey: 'menu.memory', dividerBefore: true },
+  { key: 'spit-last', icon: Trash2, labelKey: 'menu.spit_last' },
+  { key: 'web', icon: Layout, labelKey: 'menu.open_panel' },
+  { key: 'walk-start', icon: Footprints, labelKey: 'menu.walk', dividerBefore: true },
+  { key: 'exit', icon: LogOut, labelKey: 'menu.quit', dividerBefore: true }
 ]
 
 /** 菜单样式 CSS（暗色毛玻璃风格，含 hover 高亮） */
@@ -161,6 +162,7 @@ export default function ContextMenu({
   const menuRef = useRef<HTMLDivElement>(null)
   // 实际渲染坐标（经过边界调整）
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const t = useT()
 
   // 首次挂载注入样式
   useEffect(() => {
@@ -232,8 +234,8 @@ export default function ContextMenu({
               <span className="graphpet-ctx-icon">
                 <IconComponent size={16} />
               </span>
-              <span className="graphpet-ctx-label">{item.label}</span>
-              {item.disabled && <span className="graphpet-ctx-suffix">敬请期待</span>}
+              <span className="graphpet-ctx-label">{t(item.labelKey)}</span>
+              {item.disabled && <span className="graphpet-ctx-suffix">{t('menu.coming_soon')}</span>}
             </div>
           </div>
         )

@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { DEFAULT_SETTINGS } from '../stores/settingsStore'
 import type { AppSettings, LlmProvider } from '../stores/settingsStore'
+import { getLocale, setLocale, useT, type Locale } from '../i18n'
 
 export interface SettingsPanelProps {
   visible: boolean
@@ -504,6 +505,8 @@ export default function SettingsPanel({
   const [initialSettings, setInitialSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState<boolean>(false)
   const [showApiKey, setShowApiKey] = useState<boolean>(false)
+  const [currentLocale, setCurrentLocale] = useState<Locale>(getLocale())
+  const t = useT()
 
   useEffect(() => {
     injectStyles()
@@ -819,6 +822,21 @@ export default function SettingsPanel({
             <option value="dark">🌙 暗色（默认）</option>
             <option value="light">☀️ 亮色</option>
             <option value="auto">🖥 跟随系统</option>
+          </select>
+        </div>
+        <div className="graphpet-settings-field">
+          <label className="graphpet-settings-label">界面语言 / Language</label>
+          <select
+            className="graphpet-settings-select"
+            value={currentLocale}
+            onChange={(e) => {
+              const locale = e.target.value as 'zh' | 'en'
+              setLocale(locale)
+              setCurrentLocale(locale)
+            }}
+          >
+            <option value="zh">🇨🇳 简体中文（默认）</option>
+            <option value="en">🇺🇸 English</option>
           </select>
         </div>
 
