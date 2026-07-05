@@ -328,6 +328,24 @@ const SETTINGS_PANEL_CSS = `
   color: #e4e4e7;
   background: rgba(255, 255, 255, 0.05);
 }
+.graphpet-settings-btn-import,
+.graphpet-settings-btn-export {
+  background: transparent;
+  border: 1px solid #3f3f46;
+  color: #a1a1aa;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.graphpet-settings-btn-import:hover {
+  border-color: #6366f1;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.08);
+}
+.graphpet-settings-btn-export:hover {
+  border-color: #10b981;
+  color: #86efac;
+  background: rgba(16, 185, 129, 0.08);
+}
 .graphpet-settings-btn-save {
   background: #6366f1;
   border: none;
@@ -550,6 +568,54 @@ export default function SettingsPanel({
     onClose()
   }
 
+  // 配置导入：读取本地 JSON 文件覆盖 draft
+  const handleExportSettings = async (): Promise<void> => {
+    try {
+      const json = JSON.stringify({ settings: draft, exportedAt: new Date().toISOString(), version: '0.3.6' }, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `graphpet-settings-${Date.now()}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('[SettingsPanel] 导出失败:', err)
+      alert('导出失败: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
+  // 配置导入：弹出文件选择，读取 JSON 并覆盖 draft
+  const handleImportSettings = async (): Promise<void> => {
+    try {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'application/json,.json'
+      input.onchange = async (): Promise<void> => {
+        const file = input.files?.[0]
+        if (!file) return
+        try {
+          const text = await file.text()
+          const parsed = JSON.parse(text) as { settings?: Partial<AppSettings> }
+          if (!parsed.settings || typeof parsed.settings !== 'object') {
+            alert('文件格式不正确：缺少 settings 字段')
+            return
+          }
+          setDraft((d) => ({ ...d, ...parsed.settings }) as AppSettings)
+          alert('已加载配置，请检查后点击保存生效')
+        } catch (parseErr) {
+          alert('解析失败: ' + (parseErr instanceof Error ? parseErr.message : String(parseErr)))
+        }
+      }
+      input.click()
+    } catch (err) {
+      console.error('[SettingsPanel] 导入失败:', err)
+      alert('导入失败: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
   const noKeyProviders = ['ollama', 'pollinations', 'freellmapi', 'freellm']
   const hideApiKey = noKeyProviders.includes(draft.llmProvider)
   const hideApiBase = draft.llmProvider === 'freellm'
@@ -698,6 +764,20 @@ export default function SettingsPanel({
         />
 
         <div className="graphpet-settings-footer">
+          <button
+            className="graphpet-settings-btn graphpet-settings-btn-import"
+            onClick={handleImportSettings}
+            title="从 JSON 文件导入配置"
+          >
+            📥 导入
+          </button>
+          <button
+            className="graphpet-settings-btn graphpet-settings-btn-export"
+            onClick={handleExportSettings}
+            title="导出当前配置为 JSON 文件"
+          >
+            📤 导出
+          </button>
           <button
             className="graphpet-settings-btn graphpet-settings-btn-cancel"
             onClick={onClose}

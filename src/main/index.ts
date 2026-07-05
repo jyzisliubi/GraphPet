@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, screen, desktopCapturer } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, screen, desktopCapturer, globalShortcut } from 'electron'
 import path from 'path'
 import { spawn, type ChildProcess } from 'child_process'
 import * as http from 'http'
@@ -1218,6 +1218,33 @@ app.whenReady().then(async () => {
   }
 
   createPetWindow()
+
+  // 注册全局热键：Ctrl+Shift+G 显示/隐藏宠物窗口
+  try {
+    const ret = globalShortcut.register('CommandOrControl+Shift+G', () => {
+      if (!petWindow || petWindow.isDestroyed()) return
+      if (petWindow.isVisible() && !petWindow.isMinimized()) {
+        petWindow.hide()
+      } else {
+        petWindow.show()
+        petWindow.focus()
+      }
+    })
+    if (!ret) {
+      console.warn('[GraphPet] 全局热键 Ctrl+Shift+G 注册失败（可能已被其他应用占用）')
+    }
+  } catch (err) {
+    console.warn('[GraphPet] 全局热键注册异常:', err)
+  }
+})
+
+// 应用退出时注销所有全局热键
+app.on('will-quit', () => {
+  try {
+    globalShortcut.unregisterAll()
+  } catch {
+    /* ignore */
+  }
 })
 
 app.on('activate', () => {
