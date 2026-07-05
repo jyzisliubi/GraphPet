@@ -258,12 +258,15 @@ export function useChat(options?: UseChatOptions): UseChatResult {
         )
 
         if (finalSuccess && accumulatedContent) {
+          // 卸载守卫：组件已卸载则不触发音效/TTS 等副作用
+          if (!mountedRef.current) return
           playMessageSound()
           // TTS 语音播报（仅当用户开启时调用，不阻塞主流程）
           if (ttsEnabledRef.current) {
             void speakText(accumulatedContent, ttsVoiceRef.current)
           }
         } else if (!finalSuccess) {
+          if (!mountedRef.current) return
           playErrorSound()
           setError(finalMessage || '回答失败')
         }
@@ -304,5 +307,14 @@ export function useChat(options?: UseChatOptions): UseChatResult {
     }
   }, [])
 
-  return { messages, loading, error, sendQuestion, clearMessages }
+  // 卸载守卫：避免流式回调在组件卸载后触发 TTS / 表情 / 音效等副作用
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  return { messages, loading, error, sendQuestion, clearMessages, mountedRef }
 }

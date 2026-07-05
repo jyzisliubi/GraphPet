@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   getMemoryFiles,
   deleteMemoryFile,
@@ -102,11 +102,20 @@ export default function FileList(): JSX.Element {
     loadFiles()
   }, [])
 
-  // 自动消失的提示
+  // 自动消失的提示（用 ref 持有 timer，卸载时清理避免泄漏）
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = (msg: string): void => {
     setToast(msg)
-    setTimeout(() => setToast(null), 3000)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000)
   }
+
+  // 卸载时清理 toast timer
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   // 点击行展开/收起，加载该文件的三元组
   const toggleExpand = async (file: FedFile): Promise<void> => {

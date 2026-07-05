@@ -251,19 +251,23 @@ export default function MemoryGraph(): JSX.Element {
   }, [searchQuery, graph.nodes])
 
   const handleRefresh = (): void => {
+    let cancelled = false
     setLoading(true)
     setError(null)
     getMemoryGraph()
       .then((res) => {
+        if (cancelled) return
         setTriples(res.triples)
         setActiveNode(null)
         setSearchQuery('')
         setLoading(false)
       })
       .catch((err) => {
+        if (cancelled) return
         setError(err instanceof Error ? err.message : String(err))
         setLoading(false)
       })
+    // 注意：此组件在 web 面板内，不会频繁卸载，cancelled 守卫足以防止过期 setState
   }
 
   // SVG 坐标 → 画布坐标（考虑 zoom + pan）
