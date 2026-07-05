@@ -526,11 +526,40 @@ function AppInner(): JSX.Element {
     playClickSound()
 
     const isHead = y < 280
-    const headReactions = ['摸摸头~好舒服！', '嘻嘻，别摸我头啦~', '嗯~最喜欢被摸头了！', '头发都乱了啦~', '哇！被摸头好开心~']
-    const bodyReactions = ['嗯？干嘛戳我？', '在呢在呢~', '别戳我呀~', '有事吗？主人~', '哼哼，我在听哦~', '好痒好痒~']
-    const reaction = isHead
-      ? headReactions[Math.floor(Math.random() * headReactions.length)]
-      : bodyReactions[Math.floor(Math.random() * bodyReactions.length)]
+    // v0.3.4：按当前 mood 调整点击反应
+    const moodClickReactions: Record<string, { head: string[]; body: string[] }> = {
+      happy: {
+        head: ['摸摸头~好舒服！', '嘻嘻，被摸头好开心~', '嗯~最喜欢主人了！'],
+        body: ['嘿嘿，被戳了好开心~', '主人我又不是玩具~', '在呢在呢，开心！']
+      },
+      curious: {
+        head: ['咦，主人摸我头是想说什么？', '嗯？主人有什么事吗？', '让我猜猜主人在想什么~'],
+        body: ['咦？主人戳我是不是有事？', '嗯？要问什么吗？', '主人在叫我吗？']
+      },
+      excited: {
+        head: ['哇！被摸头了！', '主人主人！我好开心！', '再来一次再来一次！'],
+        body: ['哇哦！被戳了！', '主人跟我玩呢！', '嘿嘿，戳我我就跳！']
+      },
+      bored: {
+        head: ['哦...终于来摸我了...', '嗯，主人来了~', '我还以为主人忘了我呢...'],
+        body: ['哦？终于来戳我了~', '主人记得我呢！', '终于有反应了...']
+      },
+      sleepy: {
+        head: ['嗯...摸头好舒服...继续...', '别...我在睡觉...嗯...', '唔...主人...再摸摸...'],
+        body: ['嗯？戳我干嘛...我在睡...', '唔...别闹...嗯...', '让我再睡会儿...']
+      },
+      sad: {
+        head: ['主人...你终于来摸我了...', '被摸头...心情好一点了...', '谢谢主人...我还以为你忘了...'],
+        body: ['主人还在...我好多了...', '谢谢你戳我...知道你在...', '嗯...主人还在就好...']
+      },
+      neutral: {
+        head: ['摸摸头~好舒服！', '嘻嘻，别摸我头啦~', '嗯~最喜欢被摸头了！', '头发都乱了啦~', '哇！被摸头好开心~'],
+        body: ['嗯？干嘛戳我？', '在呢在呢~', '别戳我呀~', '有事吗？主人~', '哼哼，我在听哦~', '好痒好痒~']
+      }
+    }
+    const reactions = moodClickReactions[petState.mood] ?? moodClickReactions.neutral
+    const pool = isHead ? reactions.head : reactions.body
+    const reaction = pool[Math.floor(Math.random() * pool.length)]
 
     try {
       if (isHead) {
@@ -545,7 +574,7 @@ function AppInner(): JSX.Element {
       }, 2500)
     } catch { /* ignore */ }
     showMessage(reaction, 3000)
-  }, [showMessage, recordInteraction])
+  }, [showMessage, recordInteraction, petState.mood])
 
   useProactive(showMessage, settings.quietMode)
 
