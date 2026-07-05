@@ -3,6 +3,63 @@ import { getGrowthSummary, getMemoryStats } from '../services/feedService'
 import type { GrowthSummary, MemoryStats } from '../services/feedService'
 import NitoIcon from '../components/NitoIcon'
 
+/** v0.3.4: 桌宠心情/行为状态快照（从 localStorage 读取，与渲染进程 usePetState 同步） */
+interface PetStateSnapshot {
+  mood: string
+  activity: string
+  lastInteractionAt: number
+}
+
+/** 心情显示配置：emoji + 中文 + 渐变色（用于卡片背景） */
+const MOOD_DISPLAY: Record<string, { emoji: string; label: string; gradient: string }> = {
+  happy: { emoji: '😊', label: '开心', gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)' },
+  curious: { emoji: '🤔', label: '好奇', gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' },
+  excited: { emoji: '🤩', label: '兴奋', gradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' },
+  bored: { emoji: '😶', label: '无聊', gradient: 'linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)' },
+  sleepy: { emoji: '😴', label: '困倦', gradient: 'linear-gradient(135deg, #4338ca 0%, #6366f1 100%)' },
+  sad: { emoji: '😢', label: '难过', gradient: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)' },
+  neutral: { emoji: '🙂', label: '平静', gradient: 'linear-gradient(135deg, #52525b 0%, #71717a 100%)' }
+}
+
+/** 行为状态中文映射 */
+const ACTIVITY_LABEL: Record<string, string> = {
+  idle: '闲置中',
+  eating: '进食中',
+  thinking: '思考中',
+  talking: '说话中',
+  sleeping: '睡眠中'
+}
+
+/** 读取 localStorage 的 PetState 快照 */
+function readPetStateSnapshot(): PetStateSnapshot {
+  try {
+    const raw = localStorage.getItem('graphpet_pet_state')
+    if (!raw) return { mood: 'neutral', activity: 'idle', lastInteractionAt: Date.now() }
+    const parsed = JSON.parse(raw) as Partial<PetStateSnapshot>
+    return {
+      mood: typeof parsed.mood === 'string' ? parsed.mood : 'neutral',
+      activity: typeof parsed.activity === 'string' ? parsed.activity : 'idle',
+      lastInteractionAt:
+        typeof parsed.lastInteractionAt === 'number' ? parsed.lastInteractionAt : Date.now()
+    }
+  } catch {
+    return { mood: 'neutral', activity: 'idle', lastInteractionAt: Date.now() }
+  }
+}
+
+/** 计算距离上次互动的人类可读时间 */
+function formatTimeAgo(timestamp: number): string {
+  const elapsed = Math.max(0, Date.now() - timestamp)
+  const seconds = Math.floor(elapsed / 1000)
+  if (seconds < 60) return `${seconds} 秒前`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  return `${days} 天前`
+}
+
 // 智力等级展示页（Task 27）
 //
 // 可视化 Nito 的成长状态：
@@ -93,6 +150,8 @@ export default function Profile(): JSX.Element {
   const [stats, setStats] = useState<MemoryStats | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  // v0.3.4：当前心情/行为状态快照
+  const [petSnapshot, setPetSnapshot] = useState<PetStateSnapshot>(readPetStateSnapshot)
 
   useEffect(() => {
     let cancelled = false
@@ -115,6 +174,21 @@ export default function Profile(): JSX.Element {
     }
   }, [])
 
+  // v0.3.4：监听 localStorage 变化（跨 window 同步）+ 1s 轮询更新"距离上次互动时间"
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === 'graphpet_pet_state' || e.key === null) {
+        setPetSnapshot(readPetStateSnapshot())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    const id = setInterval(() => setPetSnapshot(readPetStateSnapshot()), 1000)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      clearInterval(id)
+    }
+  }, [])
+
   if (loading) {
     return <div className="gp-loading">📊 正在加载成长状态...</div>
   }
@@ -134,6 +208,36 @@ export default function Profile(): JSX.Element {
 
   return (
     <div>
+      {/* v0.3.4: 当前心情/行为状态卡片 */}
+      {(() => {
+        const moodInfo = MOOD_DISPLAY[petSnapshot.mood] ?? MOOD_DISPLAY.neutral
+        const activityLabel = ACTIVITY_LABEL[petSnapshot.activity] ?? '闲置中'
+        return (
+          <div
+            className="gp-card"
+            style={{
+              marginBottom: 16,
+              background: moodInfo.gradient,
+              color: '#fff',
+              border: 'none',
+              padding: '14px 18px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 36, lineHeight: 1 }}>{moodInfo.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>
+                  Nito 现在 · {moodInfo.label}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
+                  状态：{activityLabel} · 上次互动：{formatTimeAgo(petSnapshot.lastInteractionAt)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* 等级总览卡片 */}
       <div
         className="gp-card"
