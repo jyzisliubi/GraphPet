@@ -203,12 +203,23 @@ function AppInner(): JSX.Element {
     (api: Live2DCanvasAPI, position: ModelPosition): void => {
       live2dApiRef.current = api
       setModelHeadY(position.headY)
+      // v0.3.4：根据持久化的初始 mood 选择欢迎动作 + 欢迎语
+      const moodWelcome: Record<string, { motion: string; message: string }> = {
+        happy: { motion: 'tap_body', message: '主人回来啦~ 今天心情不错哦！🥰' },
+        curious: { motion: 'thinking', message: '咦，主人来了~ 我刚好有问题想问你呢🤔' },
+        excited: { motion: 'tap_head', message: '哇！主人主人！等你好久啦！✨' },
+        bored: { motion: 'idle', message: '哦？主人终于来啦... 我都无聊好一会儿了😶' },
+        sleepy: { motion: 'sleep', message: '嗯...主人...我刚刚小睡了一下...😴' },
+        sad: { motion: 'sad', message: '主人...你回来啦...刚才有点难过😢' },
+        neutral: { motion: 'tap_body', message: '你好呀主人~我是Nito！右键可以喂我吃东西哦🥰' }
+      }
+      const welcome = moodWelcome[petState.mood] ?? moodWelcome.neutral
       setTimeout(() => {
-        try { api.triggerMotion('tap_body') } catch { /* ignore */ }
-        showMessage('你好呀主人~我是Nito！右键可以喂我吃东西哦🥰', 5000)
+        try { api.triggerMotion(welcome.motion) } catch { /* ignore */ }
+        showMessage(welcome.message, 5000)
       }, 600)
     },
-    [showMessage]
+    [showMessage, petState.mood]
   )
 
   const handleModelError = useCallback((err: string): void => {
