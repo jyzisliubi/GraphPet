@@ -277,6 +277,12 @@ _st_lock = threading.Lock()
 
 
 def _get_st_model():
+    """获取 fastembed 模型（轻量级，纯 onnxruntime，无 torch 依赖）。
+
+    BUG-3 终极修复：sentence-transformers + torch 2.7 + CUDA 在 uvicorn 多线程
+    下加载会触发 0xC0000005 segfault（Windows only，进程级崩溃无法捕获）。
+    fastembed 用纯 onnxruntime，加载快且稳定，模型自动从 HuggingFace 下载缓存。
+    """
     global _st_model
     if _st_model is not None:
         return _st_model
@@ -284,22 +290,28 @@ def _get_st_model():
         if _st_model is not None:
             return _st_model
         try:
-            from sentence_transformers import SentenceTransformer
+            from fastembed import TextEmbedding
         except ImportError as e:
-            raise RagNotAvailableError(f"sentence-transformers not installed: {e}") from e
+            raise RagNotAvailableError(f"fastembed not installed: {e}") from e
         try:
-            _st_model = SentenceTransformer(EMBED_MODEL_NAME, local_files_only=True)
-            print(f"[GraphPet] ST embedding model loaded: {EMBED_MODEL_NAME} dim={_st_model.get_sentence_embedding_dimension()}", flush=True)
+            _st_model = TextEmbedding(EMBED_MODEL_NAME)
+            # 触发模型加载 + 一次预热
+            _ = list(_st_model.embed(["warmup"]))
+            print(f"[GraphPet] fastembed model loaded: {EMBED_MODEL_NAME}", flush=True)
             return _st_model
         except Exception as e:
-            raise RagNotAvailableError(f"Failed to load ST model: {type(e).__name__}: {e}") from e
+            raise RagNotAvailableError(f"Failed to load fastembed: {type(e).__name__}: {e}") from e
 
 
 async def _st_embed_async(texts):
     import asyncio as _a
+    import numpy as _np
     model = _get_st_model()
     loop = _a.get_event_loop()
-    return await loop.run_in_executor(None, lambda: model.encode(texts, normalize_embeddings=True, show_progress_bar=False))
+    def _embed():
+        # fastembed 返回 generator，转 numpy array
+        return _np.array(list(model.embed(texts)))
+    return await loop.run_in_executor(None, _embed)
 
 
 def warmup_embedding():
