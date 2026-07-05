@@ -24,6 +24,7 @@ python/vendor/
 
 # 运行时数据（知识图谱 / 状态 / 文件三元组）
 graphpet_kg/
+graphpet_kg_backup/
 graphpet_data/
 file_triples/
 graphpet_state.json
