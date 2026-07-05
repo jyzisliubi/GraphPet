@@ -36,9 +36,9 @@
 
 | 🌟 零配置开箱即用 | 📚 知识图谱喂食 | 🎀 Live2D 互动 |
 |:---:|:---:|:---:|
-| 内置免费 LLM 聚合 | PDF/Word/网页/代码 | 五姐妹皮肤切换 |
-| 不用注册不用装 Ollama | LightRAG + Docling | 21 组表情动作 |
-| 打开就能聊 | 图谱可视化 + 溯源 | 摸头/戳戳/喂食 |
+| 内置免费 LLM 聚合 | PDF/Word/网页/代码 | 五姐妹皮肤 + 自定义模型导入 |
+| 不用注册不用装 Ollama | LightRAG + Docling | 7 种心情状态机驱动反应 |
+| 打开就能聊 | 图谱可视化 + 溯源 | 摸头/戳戳/喂食/截屏喂食 |
 
 ---
 
@@ -119,7 +119,7 @@ npm run build:python-runtime
 npm run dist:full
 ```
 
-> 该模式生成的 `GraphPet-setup.exe` 包含 Python 解释器、FastAPI、Docling、LightRAG、sentence-transformers 等所有依赖，用户下载安装后即可直接运行，无需任何额外环境配置。
+> 该模式生成的 `GraphPet-setup.exe` 包含 Python 解释器、FastAPI、Docling、LightRAG、fastembed 等所有依赖，用户下载安装后即可直接运行，无需任何额外环境配置。
 
 ---
 
@@ -128,9 +128,14 @@ npm run dist:full
 ### 🎀 Live2D 桌宠
 - **Nito 官方模型** — Live2D 官模，粉发少女萌力十足
 - **五姐妹皮肤** — Nito / Ni-J / Nico / Nietzsche / Nipsilon 一键切换
+- **自定义模型导入** — 支持导入第三方 Live2D 模型（Cubism 2/4 双格式）
 - **21 组动作** — 开心、惊讶、生气、打哈欠、睡觉...
 - **表情驱动** — AI 回复内容自动匹配表情
-- **智能互动** — 摸头、戳身体、拖文件喂食都有不同反应
+- **心情状态机** — 7 种心情（happy/calm/sad/angry/shy/surprised/sleepy）驱动动作、反应、内心独白
+- **自动生命感** — auto blink / look at / idle eye movement，参考 AIRI
+- **内心想法气泡** — 90-180s 随机云朵气泡，参考 Open-LLM-VTuber
+- **智能互动** — 摸头、戳身体、拖文件喂食按心情给不同反应
+- **全局热键** — Ctrl+Shift+G 一键显示/隐藏，任何应用中秒切
 - **窗口穿透** — 平时不挡鼠标，互动自动响应
 
 ### 🚀 零配置 LLM
@@ -155,11 +160,16 @@ npm run dist:full
 
 ### 📊 管理面板
 右键 Nito → "管理面板" 打开：
-- **📊 记忆图谱** — SVG 力导向图，支持缩放拖拽
+- **📊 记忆图谱** — d3-force 力导向图，支持缩放/拖拽/搜索
 - **📁 文件列表** — 所有喂食记录，三元组详情
-- **📈 成长记录** — 智力/亲密度/性格属性
+- **📈 成长记录** — 智力/亲密度/性格属性 + 心情/行为状态卡片
 - **⏰ 时间线** — 完整互动历史
 - **💬 深度对话** — 完整聊天界面
+
+### 🛠 高级功能
+- **📥 截屏喂食** — 右键"截屏喂食"，Nito 看得见你的屏幕
+- **📥 配置导入/导出** — JSON 一键迁移设置，换机无忧
+- **⌨️ 全局热键** — Ctrl+Shift+G 任何应用中切换显示
 
 ---
 
@@ -209,7 +219,7 @@ npm run dist:full
 │         ▼                 ▼                     ▼               │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
 │  │ FreeLLM      │  │ Docling      │  │ LightRAG 图谱       │   │
-│  │ Router       │  │ PDF/Word/HTML│  │ + sentence-transformers│  │
+│  │ Router       │  │ PDF/Word/HTML│  │ + fastembed         │   │
 │  │ 多服务商聚合  │  │   → Markdown │  │  BGE-small-zh 向量   │   │
 │  │ 自动故障转移  │  │              │  │  Local/Global/Hybrid │   │
 │  └──────┬───────┘  └──────────────┘  └──────────────────────┘   │
@@ -272,7 +282,7 @@ GraphPet/
 - ✅ WebUI 美化（Linear/Stripe 风格，渐变品牌色、状态指示灯、动画过渡）
 - ✅ 英文 README（[README_EN.md](README_EN.md)）
 
-### v0.3.x — v0.3.3 已完成 ✅
+### v0.3.x — v0.3.8 已完成 ✅
 
 - ✅ d3-force 力导向图谱可视化（替换手写 SVG 布局，支持节点拖拽/搜索/缩放）
 - ✅ fastembed 替换 sentence-transformers + torch（解决 Windows uvicorn 多线程 segfault）
@@ -281,12 +291,21 @@ GraphPet/
 - ✅ **内心想法气泡**（v0.3.3）— 90-180s 随机云朵气泡，参考 Open-LLM-VTuber
 - ✅ **截屏喂食**（v0.3.3）— desktopCapturer 截屏后送入 RAG 图谱，Nito "看得见"你的屏幕
 - ✅ **情绪映射修复**（v0.3.3）— LLM 返回 emotion 字段透传到 Live2D 表情
+- ✅ **心情/行为状态系统**（v0.3.4）— 7 种心情状态机（happy/calm/sad/angry/shy/surprised/sleepy），持久化 + 互动事件驱动 + 内心独白按心情分组
+- ✅ **mood 驱动 idle motion**（v0.3.4）— 不同心情播放不同待机动作，启动欢迎语按心情选择
+- ✅ **点击反应按 mood 分组**（v0.3.4）— 7 种心情对应不同的摸头/戳身体反应
+- ✅ **P0/P1 关键 bug 修复**（v0.3.6）— LlmProvider 类型对齐 / window.PIXI 命名空间 / file.path 废弃 / AudioContext 单例 / 单实例锁 / interval 泄漏
+- ✅ **社区文件**（v0.3.6）— Issue/PR 模板 / CODEOWNERS / 行为准则 / CHANGELOG
+- ✅ **配置导入/导出**（v0.3.7）— JSON 一键迁移设置，换机无忧
+- ✅ **全局热键 Ctrl+Shift+G**（v0.3.7）— 任何应用中一键显示/隐藏 Nito
+- ✅ **自定义 Live2D 模型导入**（v0.3.8）— 文件夹选择导入第三方模型，支持 Cubism 2/4 双格式
 
 ### v0.4.x — 计划中 🚧
 
-- 🚧 心情/行为状态系统 — 状态机驱动情绪持久化、动作选择、内心独白
-- 🚧 自定义模型 — 支持导入第三方 Live2D 模型
 - 🚧 Whisper STT — 替换 Web Speech API，提升中文识别质量
+- 🚧 系统托盘菜单完善 + 多显示器适配
+- 🚧 主题切换 — 亮/暗/跟随系统
+- 🚧 立绘拖拽物理 — 拖拽时身体跟随、惯性回弹
 
 ### v0.5.x — 未来规划 🔮
 

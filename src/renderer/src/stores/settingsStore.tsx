@@ -55,6 +55,9 @@ export interface AppSettings {
   ttsVoice: string
   /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
   vadEnabled: boolean
+  // —— 外观配置 ——
+  /** 主题模式：dark / light / auto（跟随系统） */
+  theme: 'dark' | 'light' | 'auto'
 }
 
 /** 默认设置（与主进程 main/index.ts 中的 DEFAULT_SETTINGS 保持一致） */
@@ -70,7 +73,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   petScale: 1.0,
   ttsEnabled: false,
   ttsVoice: 'zh-CN-XiaoyiNeural',
-  vadEnabled: false
+  vadEnabled: false,
+  theme: 'dark'
 }
 
 /** Reducer Action 类型 */
@@ -143,6 +147,12 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
+
+  // 主题切换：把 theme 写到 <html data-theme="..."> 触发 CSS 变量覆盖
+  useEffect(() => {
+    const t = settings.theme || 'dark'
+    document.documentElement.setAttribute('data-theme', t)
+  }, [settings.theme])
 
   const value: SettingsContextValue = {
     settings,

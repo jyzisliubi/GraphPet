@@ -375,37 +375,38 @@ function waitForPythonReady(): Promise<void> {
 
 // ======================== 系统托盘 ========================
 
-/** 创建系统托盘图标和菜单 */
-function createTray(): void {
-  let icon: Electron.NativeImage
-  try {
-    if (fs.existsSync(ICON_PATH)) {
-      icon = nativeImage.createFromPath(ICON_PATH)
-    } else {
-      icon = nativeImage.createEmpty()
-    }
-  } catch {
-    icon = nativeImage.createEmpty()
-  }
-
-  tray = new Tray(icon)
-  tray.setToolTip('GraphPet - 知识图谱桌宠')
-
-  const contextMenu = Menu.buildFromTemplate([
+/** 构建系统托盘右键菜单（动态，依据当前走动/安静状态显示勾选） */
+function buildTrayMenu(): Electron.Menu {
+  const isWalking = walkTimer !== null
+  const settings = readSettings()
+  return Menu.buildFromTemplate([
     {
-      label: '显示/隐藏宠物',
+      label: '显示/隐藏宠物\tCtrl+Shift+G',
       click: () => {
         if (petWindow && !petWindow.isDestroyed()) {
-          if (petWindow.isVisible()) {
+          if (petWindow.isVisible() && !petWindow.isMinimized()) {
             petWindow.hide()
           } else {
             petWindow.show()
+            petWindow.focus()
           }
         }
       }
     },
     {
-      label: '打开网页面板',
+      label: '打开聊天窗口',
+      click: () => {
+        if (chatWindow && !chatWindow.isDestroyed()) {
+          if (chatWindow.isMinimized()) chatWindow.restore()
+          chatWindow.show()
+          chatWindow.focus()
+        } else {
+          createChatWindow()
+        }
+      }
+    },
+    {
+      label: '打开管理面板',
       click: () => {
         if (webPanelWindow && !webPanelWindow.isDestroyed()) {
           webPanelWindow.focus()
@@ -416,19 +417,79 @@ function createTray(): void {
     },
     { type: 'separator' },
     {
+      label: isWalking ? '停止走动' : '开始走动',
+      click: () => {
+        if (isWalking) {
+          stopPetWalk()
+        } else {
+          startPetWalk()
+        }
+        // 立即刷新菜单勾选状态
+        if (tray) tray.setContextMenu(buildTrayMenu())
+      }
+    },
+    {
+      label: '安静模式',
+      type: 'checkbox',
+      checked: settings.quietMode,
+      click: (menuItem) => {
+        const next = menuItem.checked
+        const cur = readSettings()
+        writeSettings({ ...cur, quietMode: next })
+        // 通知渲染进程同步 UI
+        if (petWindow && !petWindow.isDestroyed()) {
+          petWindow.webContents.send('settings:changed', { ...cur, quietMode: next })
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '关于 GraphPet',
+      click: () => {
+        const version = app.getVersion()
+        dialog.showMessageBox({
+          type: 'info',
+          title: 'GraphPet',
+          message: `GraphPet v${version}`,
+          detail: '你的 AI 知识桌宠\n喂文件、学知识、陪你聊天\n\nMade with ❤️ by Jay Z',
+          buttons: ['好的']
+        }).catch(() => { /* ignore */ })
+      }
+    },
+    {
       label: '退出',
       click: () => {
         app.quit()
       }
     }
   ])
-  tray.setContextMenu(contextMenu)
+}
+
+/** 创建系统托盘图标和菜单 */
+function createTray(): void {
+  let icon: Electron.NativeImage
+  try {
+    if (fs.existsSync(ICON_PATH)) {
+      icon = nativeImage.createFromPath(ICON_PATH)
+      // 托盘图标缩小到 16x16（Windows 任务栏标准尺寸）
+      icon = icon.resize({ width: 16, height: 16 })
+    } else {
+      icon = nativeImage.createEmpty()
+    }
+  } catch {
+    icon = nativeImage.createEmpty()
+  }
+
+  tray = new Tray(icon)
+  tray.setToolTip('GraphPet - 知识图谱桌宠')
+  tray.setContextMenu(buildTrayMenu())
   tray.on('click', () => {
     if (petWindow && !petWindow.isDestroyed()) {
-      if (petWindow.isVisible()) {
+      if (petWindow.isVisible() && !petWindow.isMinimized()) {
         petWindow.hide()
       } else {
         petWindow.show()
+        petWindow.focus()
       }
     }
   })
@@ -438,7 +499,7 @@ function createTray(): void {
 
 /** 应用设置类型（与 preload/index.ts 中的 AppSettings 保持一致） */
 interface AppSettings {
-  llmProvider: 'freellm' | 'deepseek' | 'zhipu' | 'kimi' | 'siliconflow' | 'openai' | 'openai-compatible' | 'custom' | 'ollama'
+  llmProvider: 'freellm' | 'freellmapi' | 'pollinations' | 'siliconflow' | 'ollama' | 'aliyun' | 'deepseek' | 'zhipu' | 'moonshot' | 'openai' | 'openai-compatible' | 'custom'
   llmModel: string
   llmApiBase: string
   llmApiKey: string
@@ -453,6 +514,8 @@ interface AppSettings {
   ttsVoice: string
   /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
   vadEnabled: boolean
+  /** 主题模式：dark / light / auto（跟随系统） */
+  theme: 'dark' | 'light' | 'auto'
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -467,7 +530,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   petScale: 1,
   ttsEnabled: false,
   ttsVoice: 'zh-CN-XiaoyiNeural',
-  vadEnabled: false
+  vadEnabled: false,
+  theme: 'dark'
 }
 
 /** 从 graphpet_state.json 读取设置，缺失则返回默认值 */
@@ -650,6 +714,8 @@ function registerIpcHandlers(): void {
       console.error('[GraphPet] 设置开机自启失败:', err)
     }
     syncLlmConfigToBackend(settings)
+    // 刷新托盘菜单（安静模式等勾选状态需要同步）
+    if (tray) tray.setContextMenu(buildTrayMenu())
   })
 
   // ============= 自定义 Live2D 模型导入 =============
@@ -929,8 +995,10 @@ function startPetWalk(): void {
         walkTimer = null
         return
       }
-      const { workArea } = screen.getPrimaryDisplay()
       const bounds = petWindow.getBounds()
+      // 用宠物当前所在显示器的工作区（多显示器支持）
+      const display = screen.getDisplayMatching(bounds)
+      const { workArea } = display
       // 在屏幕工作区内随机选一个点（保留 50px 边距）
       const margin = 50
       const minX = workArea.x + margin
@@ -1018,15 +1086,45 @@ function walkToTarget(targetX: number, targetY: number): void {
 
 /** 创建透明置顶的宠物主窗口 */
 function createPetWindow(): BrowserWindow {
-  const { workArea } = screen.getPrimaryDisplay()
-  const x = workArea.x + workArea.width - WINDOW_WIDTH - 20
-  const y = workArea.y + workArea.height - WINDOW_HEIGHT - 20
+  const primary = screen.getPrimaryDisplay()
+  const defaultX = primary.workArea.x + primary.workArea.width - WINDOW_WIDTH - 20
+  const defaultY = primary.workArea.y + primary.workArea.height - WINDOW_HEIGHT - 20
+
+  // 尝试恢复上次窗口位置（多显示器场景：验证位置仍在某个有效显示器内）
+  let restoreX = defaultX
+  let restoreY = defaultY
+  try {
+    const sf = getStateFilePath()
+    if (fs.existsSync(sf)) {
+      const raw = fs.readFileSync(sf, 'utf-8')
+      const data = JSON.parse(raw) as { petPos?: { x: number; y: number } }
+      if (data.petPos && typeof data.petPos.x === 'number' && typeof data.petPos.y === 'number') {
+        const probe = screen.getDisplayMatching({
+          x: data.petPos.x,
+          y: data.petPos.y,
+          width: WINDOW_WIDTH,
+          height: WINDOW_HEIGHT
+        })
+        // 确保位置在某个显示器的工作区内（留 20px 容差）
+        const wa = probe.workArea
+        if (
+          data.petPos.x >= wa.x - 20 &&
+          data.petPos.x <= wa.x + wa.width - WINDOW_WIDTH + 20 &&
+          data.petPos.y >= wa.y - 20 &&
+          data.petPos.y <= wa.y + wa.height - WINDOW_HEIGHT + 20
+        ) {
+          restoreX = data.petPos.x
+          restoreY = data.petPos.y
+        }
+      }
+    }
+  } catch { /* 静默：读取失败用默认位置 */ }
 
   const win = new BrowserWindow({
     width: WINDOW_WIDTH,
     height: WINDOW_HEIGHT,
-    x,
-    y,
+    x: restoreX,
+    y: restoreY,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -1044,6 +1142,25 @@ function createPetWindow(): BrowserWindow {
   })
 
   petWindow = win
+
+  // 移动后保存位置（节流 500ms，避免高频写盘）
+  let moveSaveTimer: NodeJS.Timeout | null = null
+  win.on('move', () => {
+    if (moveSaveTimer) clearTimeout(moveSaveTimer)
+    moveSaveTimer = setTimeout(() => {
+      try {
+        if (win.isDestroyed()) return
+        const b = win.getBounds()
+        const sf = getStateFilePath()
+        let data: Record<string, unknown> = {}
+        if (fs.existsSync(sf)) {
+          data = JSON.parse(fs.readFileSync(sf, 'utf-8'))
+        }
+        data.petPos = { x: b.x, y: b.y }
+        fs.writeFileSync(sf, JSON.stringify(data, null, 2), 'utf-8')
+      } catch { /* 静默：保存失败不影响使用 */ }
+    }, 500)
+  })
 
   win.on('closed', () => {
     if (petWindow === win) petWindow = null

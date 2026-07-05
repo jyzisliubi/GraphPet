@@ -4,7 +4,12 @@
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-07-05
+
 ### Added
+- **主题切换**：支持暗色 / 亮色 / 跟随系统三种模式，CSS 变量系统统一覆盖
+- **系统托盘菜单完善**：新增打开聊天窗口、开始/停止走动、安静模式勾选、关于对话框
+- **多显示器适配**：宠物窗口记住上次位置，走动在当前显示器工作区内随机选点
 - 自定义 Live2D 模型导入：用户可导入任意 .model3.json/.model.json 模型，复制到 userData/imported-models 持久化
 - 配置导入/导出：SettingsPanel 新增 📥导入/📤导出 按钮，支持 JSON 配置文件迁移
 - 全局热键 Ctrl+Shift+G (macOS Cmd+Shift+G) 切换宠物窗口显示
@@ -14,6 +19,8 @@
 - 点击反应按 7 种心情分组
 
 ### Fixed
+- P2: ChatPanel `handleSend` 把 `messages` 列入 deps 导致每条消息都重建，改用 ref 持有最新值
+- P2: main/index.ts 和 preload/index.ts 的 AppSettings 类型与 settingsStore 不一致（旧 9 值版本）
 - P0: `LlmProvider` 类型联合与 SettingsPanel 下拉选项对齐（扩展为 12 个值）
 - P0: Live2DCanvas `window.PIXI` 改为赋值 PIXI 命名空间（原误赋 Application 类）
 - P0: ChatPanel 历史消息 role 不再映射成 'nito'，直接传 'assistant' 给后端
@@ -26,8 +33,11 @@
 - P2: chatStore 两个 useState 各自调用 loadConversations 重复读 localStorage
 
 ### Changed
+- 系统托盘菜单动态构建（依据走动/安静状态显示勾选）
+- SettingsPanel select 元素改用 CSS 变量适配主题
 - 单实例锁生产环境失败时 app.quit()，已获锁实例监听 second-instance 唤起主窗口
 - SkinPicker 重构：新增「已导入模型」分区 + 删除按钮，UI 卡片从 260×320 扩展为 320×460
+- CI workflow 新增 concurrency 组，避免 tag 推送堆积重复 run
 
 ## [0.3.7] - 2026-07-05
 

@@ -170,9 +170,9 @@ const SETTINGS_PANEL_CSS = `
   box-sizing: border-box;
   padding: 10px 14px;
   font-size: 14px;
-  color: #e4e4e7;
-  background: #27272a;
-  border: 1px solid #3f3f46;
+  color: var(--gp-text);
+  background: var(--gp-bg-subtle);
+  border: 1px solid var(--gp-border);
   border-radius: 10px;
   outline: none;
   cursor: pointer;
@@ -189,8 +189,8 @@ const SETTINGS_PANEL_CSS = `
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 .graphpet-settings-select option {
-  background: #27272a;
-  color: #e4e4e7;
+  background: var(--gp-bg-card);
+  color: var(--gp-text);
 }
 .graphpet-settings-slider-row {
   display: flex;
@@ -762,6 +762,22 @@ export default function SettingsPanel({
           checked={draft.vadEnabled}
           onChange={(v) => patch({ vadEnabled: v })}
         />
+
+        <Divider />
+
+        <GroupTitle>外观</GroupTitle>
+        <div className="graphpet-settings-field">
+          <label className="graphpet-settings-label">主题模式</label>
+          <select
+            className="graphpet-settings-select"
+            value={draft.theme}
+            onChange={(e) => patch({ theme: e.target.value as 'dark' | 'light' | 'auto' })}
+          >
+            <option value="dark">🌙 暗色（默认）</option>
+            <option value="light">☀️ 亮色</option>
+            <option value="auto">🖥 跟随系统</option>
+          </select>
+        </div>
 
         <div className="graphpet-settings-footer">
           <button

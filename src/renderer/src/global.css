@@ -70,6 +70,73 @@ body.gp-mode-desktop {
   --gp-duration-slow: 0.35s;
 }
 
+/* ========================
+ * Light Theme 主题
+ * 通过 [data-theme="light"] 覆盖暗色 token
+ * ======================== */
+[data-theme="light"] {
+  --gp-bg: #fafafa;
+  --gp-bg-card: #ffffff;
+  --gp-bg-subtle: #f4f4f5;
+  --gp-bg-hover: #e4e4e7;
+  --gp-text: #18181b;
+  --gp-text-secondary: #52525b;
+  --gp-text-muted: #71717a;
+  --gp-border: #e4e4e7;
+  --gp-brand: #6366f1;
+  --gp-brand-hover: #4f46e5;
+  --gp-brand-active: #4338ca;
+  --gp-brand-muted: rgba(99,102,241,0.12);
+  --gp-danger: #dc2626;
+  --gp-danger-muted: rgba(220,38,38,0.12);
+  --gp-success: #16a34a;
+  --gp-success-muted: rgba(22,163,74,0.12);
+  --gp-warning: #d97706;
+  --gp-shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --gp-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --gp-shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+}
+
+/* Auto 模式：跟随系统（亮色偏好时覆盖） */
+@media (prefers-color-scheme: light) {
+  [data-theme="auto"] {
+    --gp-bg: #fafafa;
+    --gp-bg-card: #ffffff;
+    --gp-bg-subtle: #f4f4f5;
+    --gp-bg-hover: #e4e4e7;
+    --gp-text: #18181b;
+    --gp-text-secondary: #52525b;
+    --gp-text-muted: #71717a;
+    --gp-border: #e4e4e7;
+    --gp-brand: #6366f1;
+    --gp-brand-hover: #4f46e5;
+    --gp-brand-active: #4338ca;
+    --gp-brand-muted: rgba(99,102,241,0.12);
+    --gp-danger: #dc2626;
+    --gp-danger-muted: rgba(220,38,38,0.12);
+    --gp-success: #16a34a;
+    --gp-success-muted: rgba(22,163,74,0.12);
+    --gp-warning: #d97706;
+    --gp-shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+    --gp-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --gp-shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+  }
+}
+
+/* 亮色模式滚动条 */
+[data-theme="light"] ::-webkit-scrollbar-track,
+[data-theme="auto"] ::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.04);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb,
+[data-theme="auto"] ::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover,
+[data-theme="auto"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.35);
+}
+
 @keyframes graphpet-bounce-in {
   0% {
     opacity: 0;

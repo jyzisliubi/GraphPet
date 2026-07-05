@@ -7,7 +7,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron
 // 应用设置 Schema（与渲染进程 settingsStore.ts 中的 AppSettings 保持结构一致）
 // 此处单独定义是因为 preload 与 renderer 分属不同 tsconfig 工程，无法跨工程导入类型
 export interface AppSettings {
-  llmProvider: 'freellm' | 'deepseek' | 'zhipu' | 'kimi' | 'siliconflow' | 'openai' | 'openai-compatible' | 'custom' | 'ollama'
+  llmProvider: 'freellm' | 'freellmapi' | 'pollinations' | 'siliconflow' | 'ollama' | 'aliyun' | 'deepseek' | 'zhipu' | 'moonshot' | 'openai' | 'openai-compatible' | 'custom'
   llmModel: string
   llmApiBase: string
   llmApiKey: string
@@ -22,6 +22,8 @@ export interface AppSettings {
   ttsVoice: string
   /** VAD 语音打断开关 */
   vadEnabled: boolean
+  /** 主题模式 */
+  theme: 'dark' | 'light' | 'auto'
 }
 
 // IPC 通道名常量（与主进程保持一致）

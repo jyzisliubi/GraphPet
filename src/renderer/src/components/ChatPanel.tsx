@@ -1178,6 +1178,9 @@ export default function ChatPanel({
   inputValueRef.current = input
   const loadingRef = useRef<boolean>(false)
   const activeConversationIdRef = useRef<string | null>(activeConversationId)
+  // 用 ref 持有最新 messages，避免 handleSend 把 messages 列入 deps 导致每条消息都重建
+  const messagesDataRef = useRef<readonly StoreChatMessage[]>([])
+  messagesDataRef.current = messages
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId
@@ -1333,7 +1336,7 @@ export default function ChatPanel({
 
     addMessage(convId, userMsg)
 
-    const historyMessages = [...messages, userMsg].filter(m => !m.isStreaming && !m.isError)
+    const historyMessages = [...messagesDataRef.current, userMsg].filter(m => !m.isStreaming && !m.isError)
 
     const historyForApi: ChatHistoryMessage[] = historyMessages
       .slice(-20)
@@ -1434,7 +1437,7 @@ export default function ChatPanel({
       }
       setThinking(false)
     }
-  }, [messages, addMessage, updateMessage, createConversation, searchMode, setThinking])
+  }, [addMessage, updateMessage, createConversation, searchMode, setThinking])
 
   const handleQuickQuestion = (q: string): void => {
     if (loadingRef.current) return
