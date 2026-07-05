@@ -70,6 +70,19 @@
 
 </div>
 
+### 🎬 功能演示
+
+<div align="center">
+
+<!-- 录制后把 demos/demo.gif 放这里，录制指南见 demos/RECORDING-GUIDE.ps1 -->
+<!-- <img src="demos/demo.gif" width="720" style="border-radius: 12px;" /> -->
+
+> 📹 完整功能演示 GIF 录制中，详见 [录制指南](demos/RECORDING-GUIDE.ps1)
+
+**10 大场景**：心情欢迎 → 换皮肤 → 喂文件 → 截屏喂食 → 智能问答 → 心情反应 → 全局热键 → 桌宠走动 → 管理面板 → 主题切换
+
+</div>
+
 ---
 
 ## 🚀 快速开始

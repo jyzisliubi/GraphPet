@@ -166,7 +166,7 @@ Right-click Nito → "Management panel":
 
 ## 🗺 Roadmap
 
-### v0.3.x — Current ✅
+### v0.3.x — v0.3.9 Current ✅
 - ✅ Live2D pet (5 sisters, 21 motions, pet/poke/feed)
 - ✅ Zero-config free LLM aggregator (8+ providers, auto-failover)
 - ✅ Knowledge-graph feeding (Docling + LightRAG incremental)
@@ -180,12 +180,23 @@ Right-click Nito → "Management panel":
 - ✅ Embedded Python packaging (PyInstaller + electron-builder)
 - ✅ d3-force graph visualization (replaces hand-rolled layout)
 - ✅ fastembed replaces sentence-transformers (no more Windows segfault)
+- ✅ **Auto life-like** (v0.3.3) — auto blink / look at / idle eye movement
+- ✅ **Inner thought bubbles** (v0.3.3) — 90-180s random cloud bubbles
+- ✅ **Screenshot feeding** (v0.3.3) — Nito sees your screen via desktopCapturer
+- ✅ **Mood/behavior state machine** (v0.3.4) — 7 moods drive motions, reactions, inner monologue
+- ✅ **P0/P1 bug fixes** (v0.3.6) — type alignment / PIXI namespace / AudioContext singleton / single-instance lock
+- ✅ **Community files** (v0.3.6) — Issue/PR templates / CODEOWNERS / CoC / CHANGELOG
+- ✅ **Config import/export** (v0.3.7) — JSON one-click migration
+- ✅ **Global hotkey Ctrl+Shift+G** (v0.3.7) — toggle pet from any app
+- ✅ **Custom Live2D model import** (v0.3.8) — Cubism 2/4 dual format
+- ✅ **Theme switching** (v0.3.9) — dark / light / auto (follow system)
+- ✅ **Enhanced tray menu** (v0.3.9) — chat window / walk toggle / quiet mode / about
+- ✅ **Multi-monitor** (v0.3.9) — pet remembers position, walks on current display
 
 ### v0.4.x — Planned 🚧
-- 🚧 Custom Live2D model import (drop your own .model3.json)
-- 🚧 Screen understanding (screenshot + vision LLM)
-- 🚧 Voice interruption (VAD: stop TTS when user starts speaking)
-- 🚧 Whisper STT (better Chinese, local)
+- 🚧 Whisper STT — replace Web Speech API for better Chinese
+- 🚧 Live2D drag physics — body follows drag, inertia bounce
+- 🚧 Plugin system foundation
 
 ### v0.5.x — Future 🔮
 - 🔮 Multi-pet coexistence (raise several pets with different personalities)

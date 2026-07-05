@@ -16,6 +16,12 @@ let mouthCallback: ((open: number) => void) | null = null
 let currentOnEnded: (() => void) | null = null
 /** 模块级单例 AudioContext（避免每次 speakText new 一个，Chromium 限 6 个上限） */
 let audioCtxSingleton: AudioContext | null = null
+/** 当前音频的 Blob URL（stopSpeaking 时需要 revoke 避免泄漏） */
+let currentBlobUrl: string | null = null
+/** 当前音频的 MediaElementSource 节点（stopSpeaking 时 disconnect 避免累积） */
+let currentSource: MediaElementAudioSourceNode | null = null
+/** 当前音频的 AnalyserNode（stopSpeaking 时 disconnect 避免累积） */
+let currentAnalyser: AnalyserNode | null = null
 
 /** 获取/创建单例 AudioContext */
 function getAudioCtx(): AudioContext {
@@ -39,6 +45,20 @@ export function stopSpeaking(): void {
   if (currentAudio) {
     currentAudio.pause()
     currentAudio = null
+  }
+  // 释放 Blob URL（pause 不触发 ended 事件，必须手动 revoke 避免内存泄漏）
+  if (currentBlobUrl) {
+    URL.revokeObjectURL(currentBlobUrl)
+    currentBlobUrl = null
+  }
+  // 断开音频图节点（避免 MediaElementSource/Analyser 累积，旧节点持有旧 audio 引用阻止 GC）
+  if (currentSource) {
+    try { currentSource.disconnect() } catch { /* ignore */ }
+    currentSource = null
+  }
+  if (currentAnalyser) {
+    try { currentAnalyser.disconnect() } catch { /* ignore */ }
+    currentAnalyser = null
   }
   if (mouthAnimFrame) {
     cancelAnimationFrame(mouthAnimFrame)
@@ -98,6 +118,7 @@ export async function speakText(
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
     currentAudio = audio
+    currentBlobUrl = url
 
     // 口型同步：用 AnalyserNode 读取音量驱动嘴部（复用单例 AudioContext 避免 6 个上限泄漏）
     try {
@@ -107,6 +128,9 @@ export async function speakText(
       analyser.fftSize = 256
       source.connect(analyser)
       analyser.connect(audioCtx.destination)
+      // 保存引用以便 stopSpeaking 时 disconnect
+      currentSource = source
+      currentAnalyser = analyser
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
       const updateMouth = (): void => {
@@ -131,8 +155,8 @@ export async function speakText(
     }
 
     audio.addEventListener('ended', () => {
+      // stopSpeaking 已包含 URL.revokeObjectURL + disconnect，不重复调用
       stopSpeaking()
-      URL.revokeObjectURL(url)
     })
 
     await audio.play()

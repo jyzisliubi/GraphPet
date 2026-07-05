@@ -71,6 +71,8 @@ export function useVAD(options: VADOptions = {}): UseVADResult {
   const speakingRef = useRef(false)
   const startTimerRef = useRef<number | null>(null)
   const endTimerRef = useRef<number | null>(null)
+  // 标记组件是否已卸载：getUserMedia 是异步的，await 后需检查避免泄漏麦克风
+  const mountedRef = useRef(true)
 
   const cleanup = useCallback((): void => {
     if (animFrameRef.current) {
@@ -110,6 +112,11 @@ export function useVAD(options: VADOptions = {}): UseVADResult {
           autoGainControl: true,
         },
       })
+      // getUserMedia 是异步的，await 期间组件可能已卸载 → 立即释放麦克风避免泄漏
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       streamRef.current = stream
 
       const AudioCtxCtor =
@@ -185,7 +192,9 @@ export function useVAD(options: VADOptions = {}): UseVADResult {
 
   // 卸载时清理
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       cleanup()
     }
   }, [cleanup])

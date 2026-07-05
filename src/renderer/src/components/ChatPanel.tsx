@@ -1190,6 +1190,13 @@ export default function ChatPanel({
     loadingRef.current = loading
   }, [loading])
 
+  // 卸载时清理 toast 定时器避免泄漏
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
   const activeConversation = useMemo(() => {
     return conversations.find(c => c.id === activeConversationId) || null
   }, [conversations, activeConversationId])
@@ -1434,8 +1441,8 @@ export default function ChatPanel({
     } finally {
       if (activeConversationIdRef.current === convId) {
         setLoading(false)
+        setThinking(false)
       }
-      setThinking(false)
     }
   }, [addMessage, updateMessage, createConversation, searchMode, setThinking])
 
@@ -1563,6 +1570,8 @@ export default function ChatPanel({
       if (filePath) {
         void Promise.resolve(onFeedFile(filePath)).then(() => {
           showFeedToast(`已喂给Nito：${file.name}`)
+        }).catch((err) => {
+          showFeedToast(`喂食失败：${err instanceof Error ? err.message : String(err)}`)
         })
       }
     }
