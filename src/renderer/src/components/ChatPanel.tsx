@@ -18,7 +18,7 @@ export interface ChatPanelProps {
   onThinkingChange?: (thinking: boolean) => void
   onEmotionChange?: (emotion: string) => void
   searchMode?: string
-  onFeedFile?: (filePath: string) => Promise<void> | void
+  onFeedFile?: (filePath: string) => Promise<boolean> | boolean
   embedded?: boolean
   externalMessages?: Array<{ role: string; content: string }>
   onMessagesChange?: (msgs: Array<{ role: string; content: string }>) => void
@@ -938,6 +938,7 @@ function MessageItem({
   activeCiteId,
   onCiteClick,
   ttsVoice,
+  ttsProvider,
   embedded: _embedded
 }: {
   message: StoreChatMessage
@@ -945,6 +946,8 @@ function MessageItem({
   onCiteClick: (id: number) => void
   /** TTS 语音角色（仅在用户点击"朗读"按钮时使用） */
   ttsVoice?: string
+  /** TTS provider：'edge' / 'piper' */
+  ttsProvider?: 'edge' | 'piper'
   embedded?: boolean
 }): JSX.Element {
   const [sourcesExpanded, setSourcesExpanded] = useState<boolean>(false)
@@ -1007,7 +1010,7 @@ function MessageItem({
     setIsPlaying(true)
     void speakText(message.content, ttsVoice ?? 'zh-CN-XiaoyiNeural', () => {
       setIsPlaying(false)
-    })
+    }, ttsProvider ?? 'edge')
   }
 
   return (
@@ -1191,9 +1194,12 @@ export default function ChatPanel({
   }, [loading])
 
   // 卸载时清理 toast 定时器避免泄漏
+  // P1-F 修复：同时停止 STT/TTS，避免组件卸载后仍持有麦克风/扬声器资源
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      try { stopListening() } catch { /* 静默 */ }
+      try { stopSpeaking() } catch { /* 静默 */ }
     }
   }, [])
 
@@ -1218,19 +1224,50 @@ export default function ChatPanel({
   useEffect(() => {
     if (!visible || embedded) return
     const onKey = (e: globalThis.KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      // P2-E 修复：textarea/input/contenteditable 聚焦时 Escape 应该是"取消输入"而非关闭面板
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'textarea' || tag === 'input' || target?.isContentEditable) {
+        // 先尝试 blur 让焦点回到 body，再下次 Escape 才关闭
+        try { target.blur() } catch { /* ignore */ }
+        return
+      }
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [visible, onClose, embedded])
 
+  // P2-C 修复：流式回答时只在用户未向上滚动时才自动滚到底部
+  // 原代码每次 messages 变化都 scrollTop = scrollHeight，用户查看历史时被强制拉回
+  const isUserScrolledUpRef = useRef<boolean>(false)
   useEffect(() => {
     const el = messagesRef.current
     if (!el) return
+    const onScroll = (): void => {
+      const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      isUserScrolledUpRef.current = distanceToBottom > 80
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el) return
+    // 切对话时强制滚到底；流式回答中只在用户没主动向上滚动时才跟滚
     requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight
+      if (!isUserScrolledUpRef.current) {
+        el.scrollTop = el.scrollHeight
+      }
     })
   }, [messages, loading, activeConversationId])
+
+  // 切对话时重置滚动状态（新对话默认滚到底，不被旧的 isUserScrolledUp 影响）
+  useEffect(() => {
+    isUserScrolledUpRef.current = false
+  }, [activeConversationId])
 
   useEffect(() => {
     if (visible) {
@@ -1419,7 +1456,7 @@ export default function ChatPanel({
           playMessageSound()
           // TTS 语音播报（仅当用户开启时调用，不阻塞主流程）
           if (settingsRef.current.ttsEnabled && accumulatedContent) {
-            void speakText(accumulatedContent, settingsRef.current.ttsVoice)
+            void speakText(accumulatedContent, settingsRef.current.ttsVoice, undefined, settingsRef.current.ttsProvider)
           }
         } else if (!finalSuccess) {
           updateMessage(convId, assistantMsgId, {
@@ -1451,10 +1488,10 @@ export default function ChatPanel({
         playErrorSound()
       }
     } finally {
-      if (activeConversationIdRef.current === convId) {
-        setLoading(false)
-        setThinking(false)
-      }
+      // P1-A 修复：无条件重置 loading，避免流式回答中切对话/新建对话导致 loading 永久卡死
+      // （原条件守卫在切对话后跳过 setLoading(false)，输入框永久 disabled）
+      setLoading(false)
+      setThinking(false)
     }
   }, [addMessage, updateMessage, createConversation, searchMode, setThinking])
 
@@ -1476,15 +1513,15 @@ export default function ChatPanel({
     setIsListeningSTT(true)
     startListening('zh-CN', {
       onInterim: (text) => {
-        // 中间结果：替换输入框内容（用户能实时看到识别效果）
+        // P1-E 修复：中间结果用 \u200B 标记，下次 onInterim/onFinal 通过正则替换掉
+        // （原代码注释声称用 \u200B 标记但从未插入，导致中间结果无限累积）
         setInput((prev) => {
-          // 简单策略：把中间结果追加到现有输入末尾（按空格分隔）
-          const base = prev.replace(/\s*\u200B.*$/, '') // 去掉上一次的中间结果
-          return base ? `${base} ${text}` : text
+          const base = prev.replace(/\s*\u200B.*$/, '')
+          return base ? `${base} \u200B${text}` : `\u200B${text}`
         })
       },
       onFinal: (text) => {
-        // 最终结果：替换输入框内容
+        // 最终结果：清掉中间结果标记，把最终文本合并到 base
         setInput((prev) => {
           const base = prev.replace(/\s*\u200B.*$/, '')
           const merged = base ? `${base} ${text}` : text
@@ -1533,7 +1570,8 @@ export default function ChatPanel({
   }
 
   const handleSelectConversation = (id: string): void => {
-    if (loading) return
+    // P2-A 修复：允许 loading 中切换对话（P1-A 已让 loading 不会卡死）
+    // 切换时旧流会被 handleSend 的 activeConversationIdRef 守卫自动收尾
     switchConversation(id)
     setActiveCiteId(null)
     setError(null)
@@ -1550,10 +1588,12 @@ export default function ChatPanel({
     // Electron 31+ sandbox 下 file.path 已废弃，改用 webUtils.getPathForFile
     const filePath = window.api?.getPathForFile?.(file)
     if (filePath) {
+      // P1-C 修复：基于 onFeedFile 返回值决定 toast 文案（原代码无论成败都显示"已喂给Nito"）
       try {
-        await onFeedFile(filePath)
-        showFeedToast(`已喂给Nito：${file.name}`)
-      } catch {
+        const ok = await Promise.resolve(onFeedFile(filePath))
+        showFeedToast(ok === false ? `喂食失败：${file.name}` : `已喂给Nito：${file.name}`)
+      } catch (err) {
+        showFeedToast(`喂食失败：${err instanceof Error ? err.message : String(err)}`)
       }
     }
     e.target.value = ''
@@ -1580,8 +1620,9 @@ export default function ChatPanel({
       // Electron 31+ sandbox 下 file.path 已废弃，改用 webUtils.getPathForFile
       const filePath = window.api?.getPathForFile?.(file)
       if (filePath) {
-        void Promise.resolve(onFeedFile(filePath)).then(() => {
-          showFeedToast(`已喂给Nito：${file.name}`)
+        // P1-C 修复：基于返回值决定 toast 文案
+        void Promise.resolve(onFeedFile(filePath)).then((ok) => {
+          showFeedToast(ok === false ? `喂食失败：${file.name}` : `已喂给Nito：${file.name}`)
         }).catch((err) => {
           showFeedToast(`喂食失败：${err instanceof Error ? err.message : String(err)}`)
         })
@@ -1813,6 +1854,7 @@ export default function ChatPanel({
                 activeCiteId={activeCiteId}
                 onCiteClick={handleCiteClick}
                 ttsVoice={settingsRef.current.ttsVoice}
+                ttsProvider={settingsRef.current.ttsProvider}
                 embedded={embedded}
               />
             ))

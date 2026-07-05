@@ -500,6 +500,8 @@ export default function SettingsPanel({
   onSave
 }: SettingsPanelProps): JSX.Element | null {
   const [draft, setDraft] = useState<AppSettings>(DEFAULT_SETTINGS)
+  /** 打开时加载的初始设置快照，用于检测是否有未保存改动（P3-6） */
+  const [initialSettings, setInitialSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState<boolean>(false)
   const [showApiKey, setShowApiKey] = useState<boolean>(false)
 
@@ -514,7 +516,10 @@ export default function SettingsPanel({
     window.api
       .getSettings()
       .then((s) => {
-        if (!cancelled) setDraft(s)
+        if (!cancelled) {
+          setDraft(s)
+          setInitialSettings(s)
+        }
       })
       .catch((err) => {
         console.error('[SettingsPanel] 读取设置失败:', err)
@@ -527,14 +532,30 @@ export default function SettingsPanel({
     }
   }, [visible])
 
+  /** 是否有未保存改动（draft 与初始快照不一致） */
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(initialSettings)
+
+  /**
+   * 关闭面板：若有未保存改动，弹原生确认对话框避免误丢。
+   * 覆盖 ESC / 遮罩 click / X 按钮 / 取消按钮 四个关闭入口。
+   */
+  const handleClose = (): void => {
+    if (isDirty) {
+      const ok = window.confirm('当前设置尚未保存，确定要放弃改动并关闭吗？')
+      if (!ok) return
+    }
+    onClose()
+  }
+
   useEffect(() => {
     if (!visible) return
     const onKey = (e: globalThis.KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') handleClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, onClose])
+    // handleClose 依赖 draft/initialSettings/isDirty，需要重新订阅
+  }, [visible, isDirty])
 
   if (!visible) return null
 
@@ -565,6 +586,8 @@ export default function SettingsPanel({
 
   const handleSave = (): void => {
     onSave(draft)
+    // 同步 initialSettings，避免保存后 isDirty 仍为 true（用户再点关闭会误弹确认）
+    setInitialSettings(draft)
     onClose()
   }
 
@@ -622,7 +645,7 @@ export default function SettingsPanel({
   const hideModel = draft.llmProvider === 'freellm'
 
   return (
-    <div className="graphpet-settings-overlay" onClick={onClose}>
+    <div className="graphpet-settings-overlay" onClick={handleClose}>
       <div
         className="graphpet-settings-card"
         onClick={(e) => e.stopPropagation()}
@@ -633,7 +656,7 @@ export default function SettingsPanel({
           <h2 className="graphpet-settings-title">GraphPet 设置</h2>
           <button
             className="graphpet-settings-close-btn"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="关闭"
           >
             <X size={20} />
@@ -757,6 +780,26 @@ export default function SettingsPanel({
           checked={draft.ttsEnabled}
           onChange={(v) => patch({ ttsEnabled: v })}
         />
+        <div className="graphpet-settings-field">
+          <label className="graphpet-settings-label">TTS 引擎</label>
+          <select
+            className="graphpet-settings-select"
+            value={draft.ttsProvider}
+            onChange={(e) => {
+              const provider = e.target.value as 'edge' | 'piper'
+              patch({ ttsProvider: provider })
+              // 切换 provider 时同步默认 voice
+              if (provider === 'piper' && draft.ttsVoice.startsWith('zh-CN')) {
+                patch({ ttsVoice: 'zh_CN-huayan-medium' })
+              } else if (provider === 'edge' && !draft.ttsVoice.startsWith('zh-CN')) {
+                patch({ ttsVoice: 'zh-CN-XiaoyiNeural' })
+              }
+            }}
+          >
+            <option value="edge">🌐 Edge TTS（在线，免费，多音色）</option>
+            <option value="piper">🔒 Piper TTS（离线，隐私，首启下载模型）</option>
+          </select>
+        </div>
         <ToggleField
           label="语音打断（你说话时停止朗读，需麦克风）"
           checked={draft.vadEnabled}
@@ -796,7 +839,7 @@ export default function SettingsPanel({
           </button>
           <button
             className="graphpet-settings-btn graphpet-settings-btn-cancel"
-            onClick={onClose}
+            onClick={handleClose}
           >
             取消
           </button>

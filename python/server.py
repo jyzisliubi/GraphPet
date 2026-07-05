@@ -92,6 +92,24 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # P1-M 修复：进程退出时 shutdown ThreadPoolExecutor，避免子线程阻塞 uvicorn 优雅退出
+    # （原代码未 shutdown，uvicorn 会等待 worker 线程自然结束，长时间喂食可能拖延 5~10s）
+    try:
+        _chat_executor.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+    try:
+        _feed_executor.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+    # 取消未完成的流式问答后台协程
+    try:
+        from graphpet_rag_bridge import cancel_active_query_stream
+        cancel_active_query_stream()
+    except Exception:
+        pass
+    print("[GraphPet] 后端 ThreadPool 已 shutdown", flush=True)
+
 
 # 创建 FastAPI 应用实例
 app = FastAPI(title="GraphPet Backend", version="0.3.0", lifespan=lifespan)
@@ -180,9 +198,14 @@ _llm_check_lock = threading.Lock()
 _llm_fail_cooldown_until: float = 0.0
 _llm_fail_cooldown_lock = threading.Lock()
 _llm_last_fail_time = 0  # 上次失败时间戳，用于控制重试间隔
-# 单例线程池（避免每次调用创建/销毁线程池导致资源泄漏和锁问题）。
-# max_workers=4：允许喂食（KG抽取+索引）与聊天 LLM 调用并发，避免互相阻塞。
-_llm_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm-worker")
+# P3-1 修复：拆分 chat 与 feed 线程池，避免长喂食（最长 900s）耗尽 worker
+# 导致 chat 调用排队阻塞。每个池独立 2 worker：
+#   _chat_executor: 闲聊/RAG/主动对话（单次最长 90s/60s/10s）
+#   _feed_executor: 文档喂食 + ollama 拉模型（单次最长 900s/数分钟）
+# _llm_executor 保留为兼容别名（指向 _chat_executor），不破坏旧调用点。
+_chat_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="chat-worker")
+_feed_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="feed-worker")
+_llm_executor = _chat_executor  # 兼容别名
 
 
 def _check_llm_available() -> bool:
@@ -758,7 +781,8 @@ async def _ollama_pull_generator(req: PullRequest):
         finally:
             ev_q.put(_SENTINEL)
 
-    _llm_executor.submit(_worker)
+    # P3-1: 拉模型是长任务（数分钟），用 _feed_executor 避免占用 chat worker
+    _feed_executor.submit(_worker)
 
     try:
         while True:
@@ -1034,7 +1058,8 @@ async def feed(req: FeedRequest) -> FeedResponse:
     使 /health 轮询、聊天等接口在喂食过程中仍可响应。
     """
     loop = __import__("asyncio").get_event_loop()
-    return await loop.run_in_executor(_llm_executor, _feed_sync, req)
+    # P3-1: 喂食用 _feed_executor，避免占用 chat worker
+    return await loop.run_in_executor(_feed_executor, _feed_sync, req)
 
 
 # ========================
@@ -1251,7 +1276,8 @@ async def _feed_stream_generator(req: FeedRequest):
             ev_q.put(_SENTINEL)
 
     # 在单例线程池里跑同步喂食逻辑，避免阻塞 FastAPI 事件循环
-    _llm_executor.submit(_worker)
+    # P3-1: 用 _feed_executor 避免占用 chat worker
+    _feed_executor.submit(_worker)
 
     try:
         while True:
@@ -1836,11 +1862,29 @@ async def chat_stream(req: ChatRequest):
 
 def _call_with_timeout(func, timeout_sec=10, default=None):
     """在线程池中调用函数，超时返回default值。用于保护所有LLM调用不阻塞服务器。
-    使用单例线程池_llm_executor避免资源泄漏。"""
+    使用单例线程池_llm_executor避免资源泄漏。
+
+    P1-N 修复：超时后调用 future.cancel()，避免已提交但未执行的任务继续占用 worker
+    （注：已开始执行的 LLM 调用无法被 Python 层取消，但至少清理队列残留）
+    """
+    future = None
     try:
         future = _llm_executor.submit(func)
         return future.result(timeout=timeout_sec)
+    except concurrent.futures.TimeoutError:
+        # 超时后主动取消（已执行中的任务无法真停，仅能取消排队中的）
+        if future is not None:
+            try:
+                future.cancel()
+            except Exception:
+                pass
+        return default
     except Exception:
+        if future is not None:
+            try:
+                future.cancel()
+            except Exception:
+                pass
         return default
 
 
@@ -1937,21 +1981,31 @@ def proactive_trivia() -> dict:
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=500, description="要合成的文本")
     voice: str = Field("zh-CN-XiaoyiNeural", description="edge-tts 语音角色")
+    # P2-D + TTS 矩阵扩展：支持多 TTS provider
+    # edge = 微软免费（默认）/ piper = 本地离线 / coqui = 本地高质量（可选）
+    provider: str = Field("edge", description="TTS provider: edge / piper")
 
 
 @app.post("/tts")
 async def text_to_speech(req: TTSRequest):
-    """TTS 语音合成端点：用 edge-tts（微软免费TTS）将文本转为 mp3 音频流。
+    """TTS 语音合成端点：支持多 provider（edge / piper）。
 
-    无需 API Key，中文质量好，延迟约 1-2 秒。
-    默认语音 zh-CN-XiaoyiNeural（晓伊，年轻女声，适合桌宠角色）。
+    edge-tts：微软免费 TTS，无需 API Key，中文质量好，延迟约 1-2 秒。
+    piper：本地离线 TTS，首启下载模型，零延迟零成本，隐私友好。
 
     返回 audio/mpeg 流，前端可直接用 <audio> 或 Audio API 播放。
     失败时返回 JSON + HTTP 500，前端按 content-type 判断错误。
     """
+    provider = (req.provider or "edge").lower()
     try:
-        import edge_tts
         from io import BytesIO
+
+        if provider == "piper":
+            # Piper 本地离线 TTS（隐私友好，无网络依赖）
+            return _tts_piper(req.text, req.voice)
+
+        # 默认 edge-tts
+        import edge_tts
 
         communicate = edge_tts.Communicate(req.text, req.voice)
         audio_buffer = BytesIO()
@@ -1972,9 +2026,85 @@ async def text_to_speech(req: TTSRequest):
         )
 
 
+def _tts_piper(text: str, voice: str):
+    """Piper 本地离线 TTS。
+
+    voice 参数是 piper 模型名（如 zh_CN-huayan-medium）。
+    模型缓存目录：app_data/piper_models/。
+    首次使用会下载模型（约 60MB），后续直接复用。
+
+    Piper 是 python -m piper_cli 的封装，输出 WAV 格式。
+    """
+    import io
+    import os
+    import urllib.request
+
+    # 模型缓存目录：与 graphpet_state.json 同级（app_data 目录）
+    app_data_dir = os.path.dirname(os.path.abspath(_state.STATE_FILE))
+    piper_models_dir = os.path.join(app_data_dir, "piper_models")
+    os.makedirs(piper_models_dir, exist_ok=True)
+
+    # 默认中文女声模型
+    model_name = voice or "zh_CN-huayan-medium"
+    model_path = os.path.join(piper_models_dir, f"{model_name}.onnx")
+    model_config_path = os.path.join(piper_models_dir, f"{model_name}.onnx.json")
+
+    # 首次使用下载模型（huggingface.co 源）
+    if not os.path.exists(model_path):
+        try:
+            # Piper 模型 URL（rhasspy/piper-voices 仓库）
+            base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+            voice_lower = model_name.lower()
+            model_url = f"{base_url}/{voice_lower}/{model_name}.onnx"
+            config_url = f"{base_url}/{voice_lower}/{model_name}.onnx.json"
+            urllib.request.urlretrieve(model_url, model_path)
+            urllib.request.urlretrieve(config_url, model_config_path)
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Piper 模型下载失败（{model_name}）: {e}"}
+            )
+
+    try:
+        # 调用 piper 推理（同步，用线程池避免阻塞 event loop）
+        import wave
+
+        def _synth():
+            try:
+                from piper import PiperVoice
+                voice_obj = PiperVoice.load(model_path, config_path=model_config_path)
+                buf = io.BytesIO()
+                with wave.open(buf, "wb") as wav_file:
+                    voice_obj.synthesize_wav(text, wav_file)
+                return buf.getvalue()
+            except ImportError:
+                return None
+
+        # 在 feed_executor 中跑（避免占用 chat worker）
+        audio_bytes = await asyncio.to_thread(_synth)
+        if audio_bytes is None:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": "piper-tts 未安装，请运行 pip install piper-tts"}
+            )
+        return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/wav")
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Piper TTS 失败: {type(e).__name__}: {e}"}
+        )
+
+
 @app.get("/tts/voices")
 async def list_tts_voices():
-    """列出可用的 edge-tts 中文语音角色。"""
+    """列出可用的语音角色（按 provider 分组）。
+
+    edge：微软免费 TTS，中文音色丰富（在线，1-2s 延迟）
+    piper：本地离线 TTS，首启下载模型后零延迟
+    """
+    result = {"edge": [], "piper": [], "count": 0}
+
+    # edge-tts 中文音色
     try:
         import edge_tts
         voices = await edge_tts.list_voices()
@@ -1983,9 +2113,33 @@ async def list_tts_voices():
             for v in voices
             if v["ShortName"].startswith("zh-CN")
         ]
-        return {"voices": zh_voices, "count": len(zh_voices)}
+        result["edge"] = zh_voices
     except Exception as e:
-        return {"voices": [], "error": str(e)}
+        result["edge_error"] = str(e)
+
+    # piper 已下载的本地模型
+    try:
+        import os
+        app_data_dir = os.path.dirname(os.path.abspath(_state.STATE_FILE))
+        piper_models_dir = os.path.join(app_data_dir, "piper_models")
+        piper_voices = []
+        if os.path.exists(piper_models_dir):
+            for fname in os.listdir(piper_models_dir):
+                if fname.endswith(".onnx"):
+                    model_name = fname[:-5]  # 去掉 .onnx
+                    piper_voices.append({"name": model_name, "friendly_name": model_name})
+        # 即使没下载也返回推荐的默认模型
+        if not piper_voices:
+            piper_voices = [
+                {"name": "zh_CN-huayan-medium", "friendly_name": "华燕（中文女声，默认）"},
+                {"name": "zh_CN-huayan-medium_onnx", "friendly_name": "华燕（ONNX）"}
+            ]
+        result["piper"] = piper_voices
+    except Exception as e:
+        result["piper_error"] = str(e)
+
+    result["count"] = len(result["edge"]) + len(result["piper"])
+    return result
 
 
 # ========================

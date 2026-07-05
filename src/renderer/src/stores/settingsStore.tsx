@@ -3,7 +3,8 @@ import {
   useContext,
   useReducer,
   useEffect,
-  useCallback
+  useCallback,
+  useRef
 } from 'react'
 import type { ReactNode, Dispatch } from 'react'
 
@@ -49,9 +50,11 @@ export interface AppSettings {
   /** 宠物缩放系数 */
   petScale: number
   // —— 语音配置 ——
-  /** TTS 语音播报开关（开启后 Nito 回答会用 edge-tts 朗读） */
+  /** TTS 语音播报开关（开启后 Nito 回答会用 TTS 朗读） */
   ttsEnabled: boolean
-  /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
+  /** TTS provider：edge（微软免费在线）/ piper（本地离线） */
+  ttsProvider: 'edge' | 'piper'
+  /** TTS 语音角色（edge: ShortName 如 zh-CN-XiaoyiNeural；piper: 模型名如 zh_CN-huayan-medium） */
   ttsVoice: string
   /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
   vadEnabled: boolean
@@ -72,6 +75,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
   petScale: 1.0,
   ttsEnabled: false,
+  ttsProvider: 'edge',
   ttsVoice: 'zh-CN-XiaoyiNeural',
   vadEnabled: false,
   theme: 'dark'
@@ -116,9 +120,20 @@ const SettingsContext = createContext<SettingsContextValue | null>(null)
 export function SettingsProvider({ children }: { children: ReactNode }): JSX.Element {
   const [settings, dispatch] = useReducer(settingsReducer, DEFAULT_SETTINGS)
 
+  /**
+   * P3-8 修复：用 ref 镜像最新 settings，避免 updateSettings 闭包捕获旧 settings
+   * 导致并发调用 race（quietMode + autoStart 同时触发时后者覆盖前者）。
+   * ref 在 dispatch 前立即更新，确保下一次 updateSettings 读到最新值。
+   */
+  const settingsRef = useRef<AppSettings>(settings)
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
   const loadSettings = useCallback(async (): Promise<void> => {
     try {
       const loaded = await window.api.getSettings()
+      settingsRef.current = loaded
       dispatch({ type: 'set', settings: loaded })
     } catch (err) {
       console.error('[settingsStore] 加载设置失败:', err)
@@ -127,6 +142,7 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
 
   const saveSettings = useCallback(async (next: AppSettings): Promise<void> => {
     try {
+      settingsRef.current = next
       await window.api.setSettings(next)
       dispatch({ type: 'set', settings: next })
     } catch (err) {
@@ -136,26 +152,29 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
 
   const updateSettings = useCallback(
     async (patch: Partial<AppSettings>): Promise<void> => {
-      const next = { ...settings, ...patch }
+      // 基于 ref 最新值合并，避免并发调用基于同一份旧 settings 计算导致互相覆盖
+      const next = { ...settingsRef.current, ...patch }
+      settingsRef.current = next
       await window.api.setSettings(next)
       dispatch({ type: 'set', settings: next })
     },
-    [settings]
+    []
   )
+
+  // 监听跨窗口 settings:changed 事件时也同步 ref
+  useEffect(() => {
+    if (!window.api?.onSettingsChanged) return
+    const unsubscribe = window.api.onSettingsChanged((next) => {
+      settingsRef.current = next
+      dispatch({ type: 'set', settings: next })
+    })
+    return unsubscribe
+  }, [dispatch])
 
   // 首次挂载加载设置
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
-
-  // 监听跨窗口 settings:changed 事件（托盘菜单/其他窗口修改时同步本窗口）
-  useEffect(() => {
-    if (!window.api?.onSettingsChanged) return
-    const unsubscribe = window.api.onSettingsChanged((next) => {
-      dispatch({ type: 'set', settings: next })
-    })
-    return unsubscribe
-  }, [dispatch])
 
   // 主题切换：把 theme 写到 <html data-theme="..."> 触发 CSS 变量覆盖
   useEffect(() => {

@@ -38,8 +38,14 @@ function ChatWindowInner(): JSX.Element {
   }, [])
 
   const handleFeedFile = useCallback(
-    (filePath: string) => {
-      void feedFile(filePath)
+    async (filePath: string): Promise<boolean> => {
+      // P1-C 修复：返回 boolean 让 ChatPanel toast 正确显示成功/失败
+      try {
+        await feedFile(filePath)
+        return true
+      } catch {
+        return false
+      }
     },
     [feedFile]
   )

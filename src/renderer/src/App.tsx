@@ -200,10 +200,24 @@ function AppInner(): JSX.Element {
     pointerEvents: 'auto'
   }
 
+  // P2-L 修复：换装时模型重新加载会再次触发 onModelReady，
+  // 原代码每次都显示欢迎语，导致换装后重复打招呼。用 ref 标记首次加载。
+  const hasShownWelcomeRef = useRef<boolean>(false)
+
   const handleModelReady = useCallback(
     (api: Live2DCanvasAPI, position: ModelPosition): void => {
       live2dApiRef.current = api
       setModelHeadY(position.headY)
+
+      // 换装时不重复显示欢迎语，只触发换装动作
+      if (hasShownWelcomeRef.current) {
+        setTimeout(() => {
+          try { api.triggerMotion('tap_body') } catch { /* ignore */ }
+        }, 300)
+        return
+      }
+      hasShownWelcomeRef.current = true
+
       // v0.3.4：根据持久化的初始 mood 选择欢迎动作 + 欢迎语
       const moodWelcome: Record<string, { motion: string; message: string }> = {
         happy: { motion: 'tap_body', message: '主人回来啦~ 今天心情不错哦！🥰' },
@@ -462,15 +476,21 @@ function AppInner(): JSX.Element {
   }, [feeding])
 
   const handleFeedFile = useCallback(
-    async (filePath: string, fileSize?: number): Promise<void> => {
+    async (filePath: string, fileSize?: number): Promise<boolean> => {
       // 喂食中拒绝重复触发，避免 abortController 被覆盖导致前一次喂食无法取消
       if (feeding) {
         showMessage('正在消化中，请稍等~')
-        return
+        return false
       }
-      const result = await feedFile(filePath, fileSize)
-      if (result) {
-        setTriplePreview(result)
+      // P1-C 修复：捕获异常返回 boolean，让 ChatPanel toast 正确显示成功/失败
+      try {
+        const result = await feedFile(filePath, fileSize)
+        if (result) {
+          setTriplePreview(result)
+        }
+        return true
+      } catch {
+        return false
       }
     },
     [feedFile, feeding, showMessage]
@@ -590,6 +610,9 @@ function AppInner(): JSX.Element {
 
   const handleDragStart = useCallback((): void => {
     isDraggingRef.current = true
+    // P1-B 修复：拖拽期间强制窗口保持非穿透，避免鼠标移出窗口边界后
+    // computeMouseMode 返回 'ignore' 导致 setIgnoreMouseEvents(true) 丢失 mousemove
+    try { window.api.forceInteractive(true) } catch { /* ignore */ }
   }, [])
 
   const handleDragEnd = useCallback((): void => {

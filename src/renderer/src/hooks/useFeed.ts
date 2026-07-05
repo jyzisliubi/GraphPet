@@ -187,7 +187,9 @@ export function useFeed(options?: UseFeedOptions): {
         showMessage(`吃不下：${err instanceof Error ? err.message : String(err)}`)
         playErrorSound()
         onFeedEndRef.current?.(false)
-        return null
+        // P1-C 修复：re-throw 让调用方（App.tsx / ChatWindowApp.tsx）能感知失败，
+        // 进而让 ChatPanel 的 toast 正确反映成功/失败状态（原返回 null 无法区分）
+        throw err
       } finally {
         setFeeding(false)
       }
@@ -231,7 +233,8 @@ export function useFeed(options?: UseFeedOptions): {
         showMessage(`吃不下：${err instanceof Error ? err.message : String(err)}`)
         playErrorSound()
         onFeedEndRef.current?.(false)
-        return null
+        // P1-C 修复：re-throw 让调用方能感知失败
+        throw err
       } finally {
         setFeeding(false)
       }

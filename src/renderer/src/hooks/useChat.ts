@@ -46,8 +46,10 @@ export interface UseChatOptions {
   storageKey?: string
   /** TTS 语音播报开关：开启后 Nito 回答会用 edge-tts 朗读 */
   ttsEnabled?: boolean
-  /** TTS 语音角色（edge-tts ShortName，仅当 ttsEnabled 为 true 时使用） */
+  /** TTS 语音角色（edge: ShortName；piper: 模型名，仅当 ttsEnabled 为 true 时使用） */
   ttsVoice?: string
+  /** TTS provider：'edge' / 'piper' */
+  ttsProvider?: 'edge' | 'piper'
 }
 
 /** useChat 返回值 */
@@ -110,6 +112,8 @@ export function useChat(options?: UseChatOptions): UseChatResult {
   ttsEnabledRef.current = options?.ttsEnabled ?? false
   const ttsVoiceRef = useRef(options?.ttsVoice ?? 'zh-CN-XiaoyiNeural')
   ttsVoiceRef.current = options?.ttsVoice ?? 'zh-CN-XiaoyiNeural'
+  const ttsProviderRef = useRef<'edge' | 'piper'>(options?.ttsProvider ?? 'edge')
+  ttsProviderRef.current = options?.ttsProvider ?? 'edge'
 
   // 挂载后：若从 localStorage 加载了消息，把 idRef 推进到已用 localId 之后，
   // 避免新消息 id 与历史消息冲突。effect 仅在挂载时执行一次。
@@ -263,7 +267,7 @@ export function useChat(options?: UseChatOptions): UseChatResult {
           playMessageSound()
           // TTS 语音播报（仅当用户开启时调用，不阻塞主流程）
           if (ttsEnabledRef.current) {
-            void speakText(accumulatedContent, ttsVoiceRef.current)
+            void speakText(accumulatedContent, ttsVoiceRef.current, undefined, ttsProviderRef.current)
           }
         } else if (!finalSuccess) {
           if (!mountedRef.current) return

@@ -204,6 +204,78 @@ function stopMousePolling(): void {
   }
 }
 
+// ======================== 屏幕感知：全屏应用检测 ========================
+
+/** 已知全屏应用进程名前缀（游戏/视频播放器） */
+const FULLSCREEN_APP_PREFIXES = [
+  'steam_', 'dota2', 'csgo', 'valorant', 'league of legends', 'overwatch',
+  'minecraft', 'genshinimpact', 'yuanshen', 'skyrim', 'witcher',
+  'vlc', 'mpv', 'mpc-hc', 'potplayer', 'potplayermini', 'kodi',
+  'obs64', 'obs32'
+]
+
+/** 全屏检测轮询句柄 */
+let fullscreenTimer: ReturnType<typeof setInterval> | null = null
+/** 用户主动隐藏状态（避免全屏检测把宠物自动显示回来） */
+let userHiddenByFullscreen = false
+
+/**
+ * 检测前台窗口是否是全屏应用（游戏/视频播放器）。
+ * 用 BrowserWindow.getFocusedWindow + desktopCapturer 间接判断：
+ * - 如果存在一个跨屏窗口（bounds 等于整个 display），认为是全屏
+ * - 简化方案：检查前台窗口标题/进程名是否匹配已知全屏应用列表
+ *
+ * 由于 Electron 没有原生 getForegroundWindow API，这里用简化策略：
+ * 监听所有 BrowserWindow，当任意非 GraphPet 窗口全屏（isFullScreen）且聚焦时，自动隐藏宠物。
+ */
+function startFullscreenDetection(): void {
+  if (fullscreenTimer) return
+  fullscreenTimer = setInterval(() => {
+    if (!petWindow || petWindow.isDestroyed()) return
+    try {
+      // 检查所有窗口是否有非 GraphPet 的全屏窗口
+      const allWindows = BrowserWindow.getAllWindows()
+      let foundFullscreen = false
+      for (const win of allWindows) {
+        if (win.isDestroyed()) continue
+        // 跳过 GraphPet 自己的窗口
+        if (win === petWindow || win === chatWindow || win === webPanelWindow) continue
+        try {
+          // 窗口全屏 + 可见 + 聚焦 = 用户正在全屏使用其他应用
+          if (win.isFullScreen() && win.isVisible() && win.isFocused()) {
+            foundFullscreen = true
+            break
+          }
+        } catch {
+          /* 忽略单个窗口查询失败 */
+        }
+      }
+
+      if (foundFullscreen && !userHiddenByFullscreen && petWindow.isVisible()) {
+        // 进入全屏：隐藏宠物
+        petWindow.hide()
+        userHiddenByFullscreen = true
+        console.log('[GraphPet] 检测到全屏应用，自动隐藏宠物')
+      } else if (!foundFullscreen && userHiddenByFullscreen && !petWindow.isVisible()) {
+        // 退出全屏：自动恢复宠物
+        petWindow.show()
+        userHiddenByFullscreen = false
+        console.log('[GraphPet] 全屏应用退出，恢复宠物显示')
+      }
+    } catch {
+      /* 检测失败静默 */
+    }
+  }, 2000)
+}
+
+/** 停止全屏检测 */
+function stopFullscreenDetection(): void {
+  if (fullscreenTimer) {
+    clearInterval(fullscreenTimer)
+    fullscreenTimer = null
+  }
+}
+
 // ======================== Python 后端管理 ========================
 
 /** 检测 Python 后端是否已经在运行（健康检查） */
@@ -323,6 +395,9 @@ function startPythonBackend(): void {
     PYTHONPATH: pythonPathParts.join(process.platform === 'win32' ? ';' : ':'),
     POCKET_INDEX_DIR: graphpetIndexDir,
     POCKET_DATA_PATH: graphpetDataPath,
+    // P1-D 修复：显式传入知识图谱目录，避免 macOS/Linux 上 bridge 用硬编码 Windows 路径
+    // （原默认值 r"d:\GraphPet\graphpet_kg" 在 Unix 下是带反斜杠的相对路径，图谱数据丢失）
+    GRAPHPET_KG_DIR: path.join(app.getPath('userData'), 'graphpet_kg'),
     // 内嵌 Python 模式下禁用自动 pip 安装（运行时已包含依赖）
     GRAPHPET_EMBEDDED_PYTHON: hasEmbeddedPython ? '1' : '0'
   }
@@ -513,9 +588,11 @@ interface AppSettings {
   quietMode: boolean
   autoStart: boolean
   petScale: number
-  /** TTS 语音播报开关（开启后 Nito 回答会用 edge-tts 朗读） */
+  /** TTS 语音播报开关（开启后 Nito 回答会用 TTS 朗读） */
   ttsEnabled: boolean
-  /** TTS 语音角色（edge-tts ShortName，如 zh-CN-XiaoyiNeural） */
+  /** TTS provider：edge（微软免费在线）/ piper（本地离线） */
+  ttsProvider: 'edge' | 'piper'
+  /** TTS 语音角色（edge: ShortName；piper: 模型名） */
   ttsVoice: string
   /** VAD 语音打断开关（开启后用户说话时自动停止 TTS） */
   vadEnabled: boolean
@@ -534,6 +611,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
   petScale: 1,
   ttsEnabled: false,
+  ttsProvider: 'edge',
   ttsVoice: 'zh-CN-XiaoyiNeural',
   vadEnabled: false,
   theme: 'dark'
@@ -834,12 +912,17 @@ function registerIpcHandlers(): void {
   })
 
   // 删除已导入的自定义模型
+  // P1-K 修复：严格路径校验，原 startsWith 检查可被兄弟目录前缀绕过
+  // （如 importedRoot=D:\a\imported，name=..\imported-evil\x => targetDir=D:\a\imported-evil\x，startsWith 仍为 true）
   ipcMain.handle('live2d:delete-imported', (_event, name: string) => {
     try {
-      const importedRoot = getImportedModelsDir()
-      const targetDir = path.join(importedRoot, name)
-      // 路径校验，防止路径穿越
-      if (!targetDir.startsWith(importedRoot)) {
+      if (!name || typeof name !== 'string' || /[\\/]|\.\.|:/.test(name)) {
+        return { success: false, error: '非法模型名' }
+      }
+      const importedRoot = path.resolve(getImportedModelsDir())
+      const targetDir = path.resolve(importedRoot, name)
+      // 严格边界：必须直接位于 importedRoot 之下（带路径分隔符）
+      if (targetDir !== importedRoot && !targetDir.startsWith(importedRoot + path.sep)) {
         return { success: false, error: '非法路径' }
       }
       if (!fs.existsSync(targetDir)) {
@@ -874,9 +957,10 @@ function registerIpcHandlers(): void {
     }
   })
 
-  // 截屏喂食：截取主屏幕，保存为临时 PNG 文件返回路径
+  // 截屏喂食：截取宠物所在屏幕，保存为临时 PNG 文件返回路径
   // 前端拿到路径后调用 feedFile(filePath) 走现有喂食管道
   // 后端 _parse_image_with_ollama 会用 Ollama vision 模型描述图片
+  // P1-L 修复：多显示器场景下原代码取 sources[0]（主屏），宠物在副屏时截错屏
   ipcMain.handle('screenshot:capture', async () => {
     try {
       const sources = await desktopCapturer.getSources({
@@ -887,7 +971,26 @@ function registerIpcHandlers(): void {
       if (sources.length === 0) {
         return { success: false, error: '没有可用的屏幕源' }
       }
-      const source = sources[0]
+      // 找宠物窗口当前所在显示器，匹配 source.name（多显示器支持）
+      let source = sources[0]
+      if (petWindow && !petWindow.isDestroyed()) {
+        try {
+          const petBounds = petWindow.getBounds()
+          const display = screen.getDisplayMatching(petBounds)
+          const matched = sources.find(s => {
+            // source.name 在 Windows 上类似 "Screen 1 (DELL U2720Q)"，无法直接对齐 display.id
+            // 但 desktopCapturer sources 顺序通常按 display id 升序，与 screen.getAllDisplays() 一致
+            const allDisplays = screen.getAllDisplays()
+            const idx = allDisplays.findIndex(d =>
+              d.bounds.x === display.bounds.x && d.bounds.y === display.bounds.y
+            )
+            return idx >= 0 && s.name.includes(`Screen ${idx + 1}`)
+          })
+          if (matched) source = matched
+        } catch {
+          /* 取不到显示器就退回 sources[0] */
+        }
+      }
       const thumbnail = source.thumbnail
       const pngBuffer = thumbnail.toPNG()
       // 保存到系统临时目录
@@ -909,14 +1012,19 @@ function registerIpcHandlers(): void {
   })
 
   // 打开/聚焦网页面板，可指定初始路由
+  // P1-J 修复：route 参数白名单校验，避免 executeJavaScript 注入
+  // （原代码直接拼接 route 到 JS 字符串，渲染进程被 XSS 攻陷后可执行任意 JS）
+  const PANEL_ROUTES = ['chat', 'memory', 'timeline', 'files', 'profile'] as const
+  type PanelRoute = typeof PANEL_ROUTES[number]
   ipcMain.on('panel:open', (_event, route?: string) => {
     if (webPanelWindow && !webPanelWindow.isDestroyed()) {
       if (webPanelWindow.isMinimized()) {
         webPanelWindow.restore()
       }
-      if (route) {
+      if (route && (PANEL_ROUTES as readonly string[]).includes(route)) {
+        const safeRoute = route as PanelRoute
         webPanelWindow.webContents
-          .executeJavaScript(`window.location.hash = '#/panel/${route}';`)
+          .executeJavaScript(`window.location.hash = '#/panel/${safeRoute}';`)
           .catch(() => {
             /* 忽略执行错误 */
           })
@@ -924,7 +1032,7 @@ function registerIpcHandlers(): void {
       webPanelWindow.focus()
       return
     }
-    createWebPanelWindow(route)
+    createWebPanelWindow(route && (PANEL_ROUTES as readonly string[]).includes(route) ? route : undefined)
   })
 
   // 打开独立聊天小窗口
@@ -1275,10 +1383,17 @@ function createWebPanelWindow(initialRoute?: string): BrowserWindow {
     }
   })
 
+  // P2-M 修复：restorePetTop 防抖，避免 chatWindow + webPanel 同时 blur 时
+  // 触发两次 setAlwaysOnTop 竞态（短时间内重复调用可能闪烁）
+  let restorePetTopTimer: ReturnType<typeof setTimeout> | null = null
   const restorePetTop = () => {
-    if (petWindow && !petWindow.isDestroyed()) {
-      petWindow.setAlwaysOnTop(true, 'screen-saver')
-    }
+    if (restorePetTopTimer) clearTimeout(restorePetTopTimer)
+    restorePetTopTimer = setTimeout(() => {
+      restorePetTopTimer = null
+      if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.setAlwaysOnTop(true, 'screen-saver')
+      }
+    }, 50)
   }
 
   win.on('blur', restorePetTop)
@@ -1398,10 +1513,16 @@ function createChatWindow(): BrowserWindow {
     }
   })
 
+  // P2-M 修复：restorePetTop 防抖，避免 chatWindow + webPanel 同时 blur 时竞态
+  let restorePetTopTimer: ReturnType<typeof setTimeout> | null = null
   const restorePetTop = () => {
-    if (petWindow && !petWindow.isDestroyed()) {
-      petWindow.setAlwaysOnTop(true, 'screen-saver')
-    }
+    if (restorePetTopTimer) clearTimeout(restorePetTopTimer)
+    restorePetTopTimer = setTimeout(() => {
+      restorePetTopTimer = null
+      if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.setAlwaysOnTop(true, 'screen-saver')
+      }
+    }, 50)
   }
 
   win.on('blur', restorePetTop)
@@ -1428,15 +1549,8 @@ function createChatWindow(): BrowserWindow {
 
 // ======================== 应用生命周期 ========================
 
-if (gotTheLock) {
-  app.on('second-instance', () => {
-    if (petWindow) {
-      if (petWindow.isMinimized()) petWindow.restore()
-      petWindow.focus()
-      petWindow.show()
-    }
-  })
-}
+// P2-J 修复：移除重复的 second-instance 监听器（顶部行 29 已注册一次）
+// 原代码在 gotTheLock 块内再次注册，导致回调执行两次（窗口 restore/show/focus 重复调用）
 
 app.whenReady().then(async () => {
   // 设置应用图标
@@ -1488,15 +1602,21 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.warn('[GraphPet] 全局热键注册异常:', err)
   }
+
+  // 屏幕感知：检测前台全屏应用，自动隐藏宠物避免遮挡
+  // 参考 Open-LLM-VTuber 的 screen-aware 实现
+  startFullscreenDetection()
 })
 
-// 应用退出时注销所有全局热键
+// 应用退出时注销所有全局热键 + 停止轮询
 app.on('will-quit', () => {
   try {
     globalShortcut.unregisterAll()
   } catch {
     /* ignore */
   }
+  stopMousePolling()
+  stopFullscreenDetection()
 })
 
 app.on('activate', () => {

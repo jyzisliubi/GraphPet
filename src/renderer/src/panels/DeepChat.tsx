@@ -252,7 +252,8 @@ export default function DeepChat(): JSX.Element {
   const { messages, loading, sendQuestion, clearMessages } = useChat({
     storageKey: 'graphpet_deepchat_v1',
     ttsEnabled: settings.ttsEnabled,
-    ttsVoice: settings.ttsVoice
+    ttsVoice: settings.ttsVoice,
+    ttsProvider: settings.ttsProvider
   })
   const [input, setInput] = useState('')
   const [activeCiteId, setActiveCiteId] = useState<number | null>(null)

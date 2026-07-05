@@ -1266,6 +1266,33 @@ def query(
     return {"answer": answer_text, "sources": []}
 
 
+# 当前活跃的流式问答 future 句柄（用于客户端断连时取消后台协程，避免 LLM 浪费）
+_active_query_future: Optional["concurrent.futures.Future"] = None
+_active_query_lock = threading.Lock()
+
+
+def cancel_active_query_stream():
+    """取消当前正在进行的流式问答后台协程。
+
+    P2-5 修复：客户端断开 SSE 连接后，前端不会再消费 chunk，但 LightRAG 的
+    aquery 协程仍会在 _bg_loop 中跑到自然结束（最长 300s），浪费 LLM API 配额。
+    本函数让调用方在 GeneratorExit 时主动取消后台 future。
+
+    注意：concurrent.futures.Future.cancel() 只能在协程尚未被 loop 调度前生效；
+    若协程已开始执行，loop 会在下一个 await 点检查 CancelledError 信号并中断。
+    """
+    global _active_query_future
+    with _active_query_lock:
+        fut = _active_query_future
+        _active_query_future = None
+    if fut is None:
+        return
+    try:
+        fut.cancel()
+    except Exception:
+        pass
+
+
 def query_stream(
     question: str,
     mode: str = "hybrid",
@@ -1275,6 +1302,12 @@ def query_stream(
 
     LightRAG stream 模式逐 token 返回。本函数在后台 loop 消费 async generator，
     通过 queue 把 token 传回主线程，yield 给 FastAPI 的 SSE 端点。
+
+    P2-5 修复要点：
+      1. queue 改为有界（maxsize=64），客户端停止消费时后台 put 会阻塞而非无限堆积
+      2. 保存 run_coroutine_threadsafe 返回的 future 句柄，暴露 cancel_active_query_stream()
+      3. _consume 协程捕获 CancelledError，正常终止 generator 而非抛异常
+      4. 主循环检测 GeneratorExit（客户端断开），主动 cancel 后台 future
 
     Yields:
         {"type": "chunk", "content": str, "full_answer": str}
@@ -1294,7 +1327,8 @@ def query_stream(
             if isinstance(m, dict) and m.get("content")
         ]
 
-    q: _queue.Queue = _queue.Queue()
+    # P2-5: maxsize=64 防止客户端断开后 token 无限堆积导致内存泄漏
+    q: _queue.Queue = _queue.Queue(maxsize=64)
     SENTINEL = object()
 
     async def _consume():
@@ -1309,34 +1343,54 @@ def query_stream(
             if hasattr(stream, "__aiter__"):
                 async for chunk in stream:
                     full += str(chunk)
-                    q.put(("chunk", str(chunk), full))
+                    # maxsize 满时阻塞，等主线程消费；若主线程已断连取消，会抛 CancelledError
+                    q.put(("chunk", str(chunk), full), timeout=120)
             else:
                 full = str(stream) if stream is not None else ""
                 if full:
-                    q.put(("chunk", full, full))
+                    q.put(("chunk", full, full), timeout=120)
+        except asyncio.CancelledError:
+            # 客户端断连触发的取消，正常终止即可，不打错误日志
+            print("[GraphPet] query_stream 后台协程被取消（客户端断连）", flush=True)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            q.put(("error", str(e), ""))
-        finally:
-            q.put(("done", "", ""))
+            try:
+                q.put(("error", str(e), ""), timeout=5)
+            except _queue.Full:
+                pass
+        else:
+            try:
+                q.put(("done", "", ""), timeout=5)
+            except _queue.Full:
+                pass
 
     loop = _get_bg_loop()
-    asyncio.run_coroutine_threadsafe(_consume(), loop)
+    # P2-5: 保存 future 句柄，供 cancel_active_query_stream() 取消
+    global _active_query_future
+    fut = asyncio.run_coroutine_threadsafe(_consume(), loop)
+    with _active_query_lock:
+        _active_query_future = fut
 
-    while True:
-        item = q.get()
-        kind = item[0]
-        if kind == "done":
-            break
-        if kind == "error":
-            yield {"type": "error", "message": item[1]}
-            break
-        yield {
-            "type": "chunk",
-            "content": item[1],
-            "full_answer": item[2],
-        }
+    try:
+        while True:
+            # 阻塞读 queue；客户端断连会从 yield 处抛 GeneratorExit 跳出 while
+            item = q.get()
+            kind = item[0]
+            if kind == "done":
+                break
+            if kind == "error":
+                yield {"type": "error", "message": item[1]}
+                break
+            yield {
+                "type": "chunk",
+                "content": item[1],
+                "full_answer": item[2],
+            }
+    except GeneratorExit:
+        # 客户端断开 SSE 连接，主动取消后台 _consume 协程避免 LLM 浪费
+        cancel_active_query_stream()
+        raise
 
 
 # ========================
@@ -1349,15 +1403,39 @@ def _get_graphml_path() -> str:
     return os.path.join(WORKING_DIR, "graph_chunk_entity_relation.graphml")
 
 
+# P3-9: graphml 缓存（mtime + graph），避免每次 get_kg_stats/get_kg_triples 重复 IO
+_kg_graph_cache: Optional[Any] = None
+_kg_graph_mtime: float = -1.0
+_kg_graph_lock = threading.Lock()
+
+
 def _read_kg_graph():
-    """读 graphml 返回 networkx 图；文件不存在返回 None。"""
+    """读 graphml 返回 networkx 图；文件不存在返回 None。
+
+    P3-9 修复：基于文件 mtime 缓存。MemoryGraph 面板每次刷新 / 三元组列表查询 /
+    feed_document_with_progress 前后比对都会调用本函数，无缓存时每次都全量
+    parse graphml（大图谱可达数 MB，parse 耗时数百 ms）。缓存 mtime 未变时直接复用。
+    """
+    global _kg_graph_cache, _kg_graph_mtime
     try:
         import networkx as nx
 
         path = _get_graphml_path()
         if not os.path.exists(path):
+            with _kg_graph_lock:
+                _kg_graph_cache = None
+                _kg_graph_mtime = -1.0
             return None
-        return nx.read_graphml(path)
+        mtime = os.path.getmtime(path)
+        # mtime 未变，直接复用缓存
+        with _kg_graph_lock:
+            if _kg_graph_cache is not None and mtime == _kg_graph_mtime:
+                return _kg_graph_cache
+        G = nx.read_graphml(path)
+        with _kg_graph_lock:
+            _kg_graph_cache = G
+            _kg_graph_mtime = mtime
+        return G
     except Exception as e:
         print(
             f"[GraphPet] 读取图谱失败: {type(e).__name__}: {e}",

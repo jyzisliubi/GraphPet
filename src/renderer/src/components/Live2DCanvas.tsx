@@ -315,8 +315,24 @@ export default function Live2DCanvas({
       if (formatRef.current === 'cubism2') {
         triggerMotionInternal(motionGroup)
       } else {
+        // P1-H 修复：Cubism 4 表情切换需要正确处理数字索引与字符串名
+        // 原代码直接 m.expression(name)，传字符串 '2' 时查找名为 '2' 的表情（不存在，静默失效）
         try {
-          void m.expression(name)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const expressions = (m.internalModel as any)?.motionManager?.definitions?.expressions
+          const expressionCount = Array.isArray(expressions) ? expressions.length : 0
+          // 数字或数字字符串：按索引取（Cubism 4 expression(index)）
+          const numericIdx = typeof name === 'number' ? name : parseInt(String(name), 10)
+          const isNumeric = !isNaN(numericIdx) && String(numericIdx) === String(name)
+          if (expressionCount > 0 && isNumeric && numericIdx >= 0 && numericIdx < expressionCount) {
+            void m.expression(numericIdx)
+          } else if (expressionCount > 0 && typeof name === 'string' && isNaN(numericIdx)) {
+            // 字符串表情名：直接传（如 'happy'/'sad'）
+            void m.expression(name)
+          } else {
+            // 模型没有表情或索引越界：走动作回退
+            triggerMotionInternal(motionGroup)
+          }
         } catch (e) {
           console.warn('[Live2DCanvas] 切换表情失败，尝试动作:', e)
           triggerMotionInternal(motionGroup)
@@ -477,19 +493,22 @@ export default function Live2DCanvas({
           { headY }
         )
 
-        // 注册 TTS 口型同步回调：音频播放时驱动 ParamMouthOpenY
-        // Cubism 2/4 模型均使用 ParamMouthOpenY 参数；失败静默（不影响渲染）
+        // 注册 TTS 口型同步回调：音频播放时驱动嘴部参数
+        // P1-G 修复：Cubism 2 用 PARAM_MOUTH_OPEN_Y（大写下划线），
+        // Cubism 4 用 ParamMouthOpenY（驼峰）。原代码对 Cubism 2 传 'ParamMouthOpenY'
+        // 导致口型同步静默失效（参数名不匹配）。现按格式选择正确参数名。
         setMouthCallback((open: number): void => {
           try {
             const m = modelRef.current
             if (!m) return
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const core = (m.internalModel as any)?.coreModel
+            // Cubism 4 走 setParameterValueById（驼峰参数名）
             if (core?.setParameterValueById) {
               core.setParameterValueById('ParamMouthOpenY', open)
             } else if (core?.setParamFloat) {
-              // Cubism 2 旧 API 兜底
-              core.setParamFloat('ParamMouthOpenY', open)
+              // Cubism 2 旧 API：参数名是大写下划线 PARAM_MOUTH_OPEN_Y
+              core.setParamFloat('PARAM_MOUTH_OPEN_Y', open)
             }
           } catch {
             /* 静默：参数不存在或模型未就绪 */

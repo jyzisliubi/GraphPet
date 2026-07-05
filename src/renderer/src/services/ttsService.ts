@@ -1,7 +1,11 @@
 /**
- * TTS 语音合成服务（edge-tts 后端集成）
+ * TTS 语音合成服务（多 provider 后端集成）
  *
- * 调用后端 POST /tts 端点，返回 mp3 音频流，前端用 Audio API 播放。
+ * 支持的 provider：
+ * - edge：微软免费 TTS（在线，1-2s 延迟，中文音色丰富）
+ * - piper：本地离线 TTS（首启下载模型，零延迟，隐私友好）
+ *
+ * 调用后端 POST /tts 端点，返回音频流，前端用 Audio API 播放。
  * 默认语音 zh-CN-XiaoyiNeural（晓伊，年轻女声，适合桌宠角色）。
  *
  * 口型同步：播放音频时驱动 Live2D ParamMouthOpenY 参数（在 Live2DCanvas 里订阅）。
@@ -81,17 +85,19 @@ export function isSpeaking(): boolean {
 }
 
 /**
- * 朗读文本（调用后端 /tts 合成 mp3 并播放）。
+ * 朗读文本（调用后端 /tts 合成音频并播放，支持多 provider）。
  *
  * @param text 要合成的文本（≤500字符）
- * @param voice edge-tts 语音角色，默认 zh-CN-XiaoyiNeural
+ * @param voice 语音角色（edge: ShortName；piper: 模型名）
  * @param onEnded 播放结束/被中断回调（用于 UI 更新播放状态）
+ * @param provider TTS provider：'edge'（默认）/ 'piper'
  * @returns 是否成功播放
  */
 export async function speakText(
   text: string,
   voice: string = 'zh-CN-XiaoyiNeural',
-  onEnded?: () => void
+  onEnded?: () => void,
+  provider: 'edge' | 'piper' = 'edge'
 ): Promise<boolean> {
   if (!text || !text.trim()) return false
 
@@ -104,7 +110,7 @@ export async function speakText(
     const resp = await fetch(`${API_BASE}/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 500), voice }),
+      body: JSON.stringify({ text: text.slice(0, 500), voice, provider }),
     })
 
     if (!resp.ok) {
@@ -171,6 +177,9 @@ export async function speakText(
     await audio.play()
     return true
   } catch (err) {
+    // P1-I 修复：失败时清理已创建的音频图节点/Blob URL，避免 MediaElementSource 持有
+    // 旧 audio 引用阻止 GC（原代码只清 currentOnEnded，节点泄漏累积到 AudioContext 6 上限后 TTS 完全失效）
+    stopSpeaking()
     console.error('[TTS] 播放失败:', err)
     currentOnEnded = null
     onEnded?.()

@@ -133,7 +133,12 @@ export default function MemoryGraph(): JSX.Element {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [zoom, setZoom] = useState<number>(1)
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [, setTick] = useState<number>(0)
+  // P3-10: 不再用 setTick 触发 React re-render；改用直接 DOM 操作更新节点/边坐标
+  // 原 setTick 在 d3-force tick 回调中每帧触发 React 全量重渲染（80 节点持续 1-2s 60fps）
+  // 现在用 ref Map 直接更新 SVG 元素 transform/坐标，simulation 完全脱离 React 渲染
+  const nodeDomRefs = useRef<Map<string, SVGGElement>>(new Map())
+  const edgeDomRefs = useRef<Map<number, SVGLineElement>>(new Map())
+  const rafPendingRef = useRef<boolean>(false)
   const isPanning = useRef(false)
   const isDraggingNode = useRef<string | null>(null)
   const lastMouse = useRef({ x: 0, y: 0 })
@@ -208,8 +213,42 @@ export default function MemoryGraph(): JSX.Element {
       .alpha(1)
       .alphaDecay(0.025)
       .on('tick', () => {
-        // 触发 React 重渲染（保持 SVG 与 simulation 同步）
-        setTick((t) => (t + 1) % 1_000_000)
+        // P3-10: RAF 节流 + 直接 DOM 操作，避免 60fps 全量 React re-render
+        if (rafPendingRef.current) return
+        rafPendingRef.current = true
+        requestAnimationFrame(() => {
+          rafPendingRef.current = false
+          // 更新节点：circle cx/cy + text x/y
+          for (const n of graph.nodes) {
+            const g = nodeDomRefs.current.get(n.id)
+            if (!g) continue
+            const circle = g.querySelector('circle')
+            const text = g.querySelector('text')
+            if (circle) {
+              circle.setAttribute('cx', String(n.x))
+              circle.setAttribute('cy', String(n.y))
+            }
+            if (text) {
+              const r = Math.min(22, Math.max(10, 10 + n.degree * 1.5))
+              text.setAttribute('x', String(n.x))
+              text.setAttribute('y', String(n.y - r - 4))
+            }
+          }
+          // 更新边：line x1/y1/x2/y2
+          for (let i = 0; i < graph.edges.length; i++) {
+            const e = graph.edges[i]
+            const line = edgeDomRefs.current.get(i)
+            if (!line) continue
+            const sn = graph.nodeMap.get(e.source as unknown as string) || graph.nodeMap.get((e.source as GraphNode).id)
+            const tn = graph.nodeMap.get(e.target as unknown as string) || graph.nodeMap.get((e.target as GraphNode).id)
+            if (sn && tn) {
+              line.setAttribute('x1', String(sn.x))
+              line.setAttribute('y1', String(sn.y))
+              line.setAttribute('x2', String(tn.x))
+              line.setAttribute('y2', String(tn.y))
+            }
+          }
+        })
       })
 
     simulationRef.current = sim
@@ -217,6 +256,9 @@ export default function MemoryGraph(): JSX.Element {
     return () => {
       sim.stop()
       simulationRef.current = null
+      // 清理 DOM ref Map，避免下次 simulation 复用旧引用
+      nodeDomRefs.current.clear()
+      edgeDomRefs.current.clear()
     }
   }, [graph])
 
@@ -418,6 +460,10 @@ export default function MemoryGraph(): JSX.Element {
                 return (
                   <line
                     key={`e-${idx}`}
+                    ref={(el) => {
+                      if (el) edgeDomRefs.current.set(idx, el)
+                      else edgeDomRefs.current.delete(idx)
+                    }}
                     className={`gp-mg-edge${isActive ? ' gp-mg-edge--active' : ''}`}
                     x1={sn.x}
                     y1={sn.y}
@@ -435,6 +481,10 @@ export default function MemoryGraph(): JSX.Element {
                 return (
                   <g
                     key={n.id}
+                    ref={(el) => {
+                      if (el) nodeDomRefs.current.set(n.id, el)
+                      else nodeDomRefs.current.delete(n.id)
+                    }}
                     className={`gp-mg-node${isActive ? ' gp-mg-node--active' : ''}`}
                     onMouseDown={(e) => handleNodeMouseDown(n.id, e)}
                     onClick={(e) => {
