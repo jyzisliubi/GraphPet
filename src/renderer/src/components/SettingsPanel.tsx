@@ -4,6 +4,7 @@ import { Eye, EyeOff, X } from 'lucide-react'
 import { DEFAULT_SETTINGS } from '../stores/settingsStore'
 import type { AppSettings, LlmProvider } from '../stores/settingsStore'
 import { getLocale, setLocale, useT, type Locale } from '../i18n'
+import { useSettings } from '../stores/settingsStore'
 
 export interface SettingsPanelProps {
   visible: boolean
@@ -507,6 +508,7 @@ export default function SettingsPanel({
   const [showApiKey, setShowApiKey] = useState<boolean>(false)
   const [currentLocale, setCurrentLocale] = useState<Locale>(getLocale())
   const t = useT()
+  const { updateSettings } = useSettings()
 
   useEffect(() => {
     injectStyles()
@@ -833,6 +835,8 @@ export default function SettingsPanel({
               const locale = e.target.value as 'zh' | 'en'
               setLocale(locale)
               setCurrentLocale(locale)
+              // 同步到 settings store，让主进程（tray 菜单）也能感知 locale 切换
+              void updateSettings({ locale })
             }}
           >
             <option value="zh">🇨🇳 简体中文（默认）</option>

@@ -72,6 +72,10 @@ export default function DragRegion({
   const containerRef = useRef<HTMLDivElement | null>(null)
   // 拖拽移动节流：避免每帧都发 IPC，减少主进程 setPosition 压力，缓解卡顿
   const lastMoveTimeRef = useRef(0)
+  // 立绘物理：记录最近两次 mousemove 的位置和时间，松手时算速度
+  // 参考 Shimeji-ee：拖拽中累积速度，松手后惯性滑行 + 边缘弹性反弹
+  const lastMoveRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  const prevMoveRef = useRef<{ x: number; y: number; t: number } | null>(null)
 
   // 全局 mousemove/mouseup 监听需要在 document 上注册，以便鼠标移出组件区域仍能持续拖拽
   useEffect(() => {
@@ -93,6 +97,9 @@ export default function DragRegion({
         const now = Date.now()
         if (now - lastMoveTimeRef.current >= 16) {
           lastMoveTimeRef.current = now
+          // 记录最近两帧位置用于松手时计算速度
+          prevMoveRef.current = lastMoveRef.current
+          lastMoveRef.current = { x: newX, y: newY, t: now }
           window.api.windowMove(newX, newY)
         }
       }
@@ -103,6 +110,27 @@ export default function DragRegion({
       const wasClick = !hasMovedRef.current && start && (Date.now() - start.time < 500)
       setIsDragging(false)
       dragStartRef.current = null
+
+      // 立绘物理：松手时基于最近两帧位移计算速度，传给主进程做惯性滑行 + 边缘反弹
+      // 只在真正拖拽过（hasMoved）且最近有移动数据时才触发
+      if (hasMovedRef.current && lastMoveRef.current && prevMoveRef.current) {
+        const dt = lastMoveRef.current.t - prevMoveRef.current.t
+        // dt 在 16~32ms 之间是正常的（一帧到两帧），过小或过大都不准
+        if (dt > 4 && dt < 100) {
+          // 速度 = 位移差 / 时间差 * 16（归一化到一帧 16ms）
+          // 阻尼放大系数 1.2 让初速度更明显（用户甩动更有感觉）
+          const vx = ((lastMoveRef.current.x - prevMoveRef.current.x) / dt) * 16 * 1.2
+          const vy = ((lastMoveRef.current.y - prevMoveRef.current.y) / dt) * 16 * 1.2
+          // 速度阈值过滤：太小的速度不触发物理动画（避免抖动）
+          if (Math.abs(vx) > 3 || Math.abs(vy) > 3) {
+            try { window.api.applyPhysics(vx, vy) } catch { /* ignore */ }
+          }
+        }
+      }
+      // 清理移动记录
+      lastMoveRef.current = null
+      prevMoveRef.current = null
+
       onDragEnd?.()
       if (wasClick && onPetClick && containerRef.current && start) {
         const rect = containerRef.current.getBoundingClientRect()

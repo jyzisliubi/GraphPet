@@ -117,6 +117,13 @@ let currentMode: IgnoreMode = 'off'
 let forceInteractive = false
 let mousePollTimer: ReturnType<typeof setInterval> | null = null
 
+/**
+ * 立绘物理动画状态：拖拽松手后惯性滑行 + 边缘弹性反弹。
+ * isPhysicsAnimating=true 时拒绝新的拖拽/物理请求，避免动画堆叠。
+ */
+let isPhysicsAnimating = false
+let physicsTimer: ReturnType<typeof setInterval> | null = null
+
 // ======================== 资源路径 ========================
 const LIVE2D_DIR = resolveResourcePath('assets', 'live2d')
 const ICON_PATH = resolveResourcePath('assets', 'icon.png')
@@ -206,14 +213,35 @@ function stopMousePolling(): void {
 
 // ======================== 屏幕感知：全屏应用检测 ========================
 
-/** 已知全屏应用进程名前缀（游戏/视频播放器） */
+/**
+ * 已知全屏应用进程名/窗口名前缀（小写匹配）。
+ * 来源：调研 Open-LLM-VTuber / Shimeji-ee 的全屏检测列表 + 主流游戏/视频播放器。
+ * desktopCapturer.getSources({types:['window']}) 返回的 source.name 在 Windows 上是窗口标题，
+ * 通常包含游戏名/应用名（如 "Dota 2" / "原神" / "VLC media player"）。
+ */
 const FULLSCREEN_APP_PREFIXES = [
-  'steam_', 'dota2', 'csgo', 'valorant', 'league of legends', 'overwatch',
-  'minecraft', 'genshinimpact', 'yuanshen', 'skyrim', 'witcher',
-  'vlc', 'mpv', 'mpc-hc', 'potplayer', 'potplayermini', 'kodi',
-  'obs64', 'obs32'
+  // 游戏（仅匹配游戏本体名，避免 Steam 客户端/Battle.net 启动器误判）
+  'dota 2', 'counter-strike', 'valorant', 'league of legends', 'overwatch',
+  'minecraft', 'genshin impact', '原神', 'yuanshen', 'skyrim',
+  'witcher', 'cyberpunk', 'elden ring', 'baldur', 'red dead', 'gta v',
+  'fortnite', 'apex legends', 'pubg', 'hearthstone', 'starcraft', 'warcraft',
+  'diablo', 'final fantasy', 'world of warcraft',
+  // 视频播放器（全屏专用，非浏览器）
+  'vlc media player', 'mpv player', 'mpc-hc', 'mpc-be', 'potplayer',
+  'kodi', 'plex ', 'jellyfin', 'emby', 'iina', 'quicktime player',
+  // 直播推流（用户主动开 OBS 直播时不应被打扰）
+  'obs studio', 'streamlabs', 'xsplit',
+  // 办公全屏演示
+  'powerpoint', 'wps 演示', 'keynote'
+  // 注意：不包含 'steam' / 'bilibili' / 'youtube' / 'netflix' 等通用词
+  // 这些应用窗口名常驻但用户不一定在全屏使用，匹配会导致宠物被误隐藏
 ]
 
+/**
+ * 全屏检测上次检测到的前台窗口名缓存（避免每次都触发 desktopCapturer）。
+ * desktopCapturer.getSources 是相对昂贵操作（生成 thumbnail），所以用 thumbnailSize:1x1。
+ */
+let lastForegroundAppName: string = ''
 /** 全屏检测轮询句柄 */
 let fullscreenTimer: ReturnType<typeof setInterval> | null = null
 /** 用户主动隐藏状态（避免全屏检测把宠物自动显示回来） */
@@ -221,51 +249,109 @@ let userHiddenByFullscreen = false
 
 /**
  * 检测前台窗口是否是全屏应用（游戏/视频播放器）。
- * 用 BrowserWindow.getFocusedWindow + desktopCapturer 间接判断：
- * - 如果存在一个跨屏窗口（bounds 等于整个 display），认为是全屏
- * - 简化方案：检查前台窗口标题/进程名是否匹配已知全屏应用列表
  *
- * 由于 Electron 没有原生 getForegroundWindow API，这里用简化策略：
- * 监听所有 BrowserWindow，当任意非 GraphPet 窗口全屏（isFullScreen）且聚焦时，自动隐藏宠物。
+ * 三层检测策略：
+ * 1. BrowserWindow.getAllWindows() 自家窗口全屏判定（精确，但只能看 GraphPet 创建的窗口）
+ * 2. desktopCapturer.getSources({types:['window']}) 枚举所有系统窗口，
+ *    检查窗口名是否匹配 FULLSCREEN_APP_PREFIXES 前缀（覆盖 Steam 游戏 / 视频播放器）
+ * 3. 检查鼠标所在显示器上是否有整屏覆盖的非 GraphPet 窗口（间接判断）
  */
 function startFullscreenDetection(): void {
   if (fullscreenTimer) return
-  fullscreenTimer = setInterval(() => {
-    if (!petWindow || petWindow.isDestroyed()) return
+  // P2 优化：动态频率，未检测到全屏时 5s 一次，检测到后 10s 一次（减少 CPU 占用）
+  const scheduleNext = (intervalMs: number): void => {
+    if (fullscreenTimer) clearTimeout(fullscreenTimer)
+    fullscreenTimer = setTimeout(() => {
+      if (!petWindow || petWindow.isDestroyed()) return
+      void detectFullscreen().then((found) => {
+        // 检测到全屏应用后降频（10s），未检测到保持 5s
+        scheduleNext(found ? 10000 : 5000)
+      }).catch(() => {
+        scheduleNext(5000)
+      })
+    }, intervalMs) as unknown as ReturnType<typeof setTimeout>
+  }
+  scheduleNext(5000)
+}
+
+/** 异步检测全屏应用 */
+async function detectFullscreen(): Promise<boolean> {
+  if (!petWindow || petWindow.isDestroyed()) return false
+  let foundFullscreen = false
+
+  // 第一层：自家窗口全屏判定（精确，覆盖 Electron 创建的全屏窗口）
+  try {
+    const allWindows = BrowserWindow.getAllWindows()
+    for (const win of allWindows) {
+      if (win.isDestroyed()) continue
+      if (win === petWindow || win === chatWindow || win === webPanelWindow) continue
+      try {
+        if (win.isFullScreen() && win.isVisible() && win.isFocused()) {
+          foundFullscreen = true
+          break
+        }
+      } catch {
+        /* 忽略单个窗口查询失败 */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 第二层：系统级窗口名匹配（关键改进，能看到所有应用窗口）
+  // 注意：desktopCapturer.getSources 在 Windows 上会触发 WGC 错误日志
+  // ("Source is not capturable")，这是 Electron 31 的已知问题，不影响功能。
+  // thumbnailSize 设为 0x0 避免生成 thumbnail 减少 WGC 调用。
+  if (!foundFullscreen) {
     try {
-      // 检查所有窗口是否有非 GraphPet 的全屏窗口
-      const allWindows = BrowserWindow.getAllWindows()
-      let foundFullscreen = false
-      for (const win of allWindows) {
-        if (win.isDestroyed()) continue
+      const sources = await desktopCapturer.getSources({
+        types: ['window'],
+        thumbnailSize: { width: 0, height: 0 }, // 不生成 thumbnail，减少 WGC 错误
+        fetchWindowIcons: false
+      })
+      for (const source of sources) {
+        const name = (source.name || '').toLowerCase()
+        if (!name) continue
         // 跳过 GraphPet 自己的窗口
-        if (win === petWindow || win === chatWindow || win === webPanelWindow) continue
-        try {
-          // 窗口全屏 + 可见 + 聚焦 = 用户正在全屏使用其他应用
-          if (win.isFullScreen() && win.isVisible() && win.isFocused()) {
+        if (name.includes('graphpet') || name.includes('nito')) continue
+        // 匹配已知全屏应用前缀
+        for (const prefix of FULLSCREEN_APP_PREFIXES) {
+          if (name.includes(prefix)) {
+            if (name !== lastForegroundAppName) {
+              lastForegroundAppName = name
+              console.log(`[GraphPet] 检测到全屏应用窗口: ${source.name}`)
+            }
             foundFullscreen = true
             break
           }
-        } catch {
-          /* 忽略单个窗口查询失败 */
         }
+        if (foundFullscreen) break
       }
-
-      if (foundFullscreen && !userHiddenByFullscreen && petWindow.isVisible()) {
-        // 进入全屏：隐藏宠物
-        petWindow.hide()
-        userHiddenByFullscreen = true
-        console.log('[GraphPet] 检测到全屏应用，自动隐藏宠物')
-      } else if (!foundFullscreen && userHiddenByFullscreen && !petWindow.isVisible()) {
-        // 退出全屏：自动恢复宠物
-        petWindow.show()
-        userHiddenByFullscreen = false
-        console.log('[GraphPet] 全屏应用退出，恢复宠物显示')
+      if (!foundFullscreen && lastForegroundAppName) {
+        lastForegroundAppName = ''
       }
     } catch {
-      /* 检测失败静默 */
+      /* desktopCapturer 失败静默 */
     }
-  }, 2000)
+  }
+
+  // 状态变更：进入/退出全屏
+  try {
+    if (foundFullscreen && !userHiddenByFullscreen && petWindow.isVisible()) {
+      // 进入全屏：隐藏宠物
+      petWindow.hide()
+      userHiddenByFullscreen = true
+      console.log('[GraphPet] 检测到全屏应用，自动隐藏宠物')
+    } else if (!foundFullscreen && userHiddenByFullscreen && !petWindow.isVisible()) {
+      // 退出全屏：自动恢复宠物
+      petWindow.show()
+      userHiddenByFullscreen = false
+      console.log('[GraphPet] 全屏应用退出，恢复宠物显示')
+    }
+  } catch {
+    /* 状态变更失败静默 */
+  }
+  return foundFullscreen
 }
 
 /** 停止全屏检测 */
@@ -450,13 +536,46 @@ function waitForPythonReady(): Promise<void> {
 
 // ======================== 系统托盘 ========================
 
+/** 主进程 i18n 字典（仅托盘菜单 + 对话框需要的 key） */
+const TRAY_I18N_ZH: Record<string, string> = {
+  'tray.show_hide': '显示/隐藏宠物\tCtrl+Shift+G',
+  'tray.open_chat': '打开聊天窗口',
+  'tray.open_panel': '打开管理面板',
+  'tray.start_walk': '开始走动',
+  'tray.stop_walk': '停止走动',
+  'tray.quiet_mode': '安静模式',
+  'tray.about': '关于 GraphPet',
+  'tray.quit': '退出',
+  'tray.about_detail': '你的 AI 知识桌宠\n喂文件、学知识、陪你聊天\n\nMade with ❤️ by Jay Z',
+  'tray.about_btn': '好的'
+}
+const TRAY_I18N_EN: Record<string, string> = {
+  'tray.show_hide': 'Show/Hide Pet\tCtrl+Shift+G',
+  'tray.open_chat': 'Open Chat Window',
+  'tray.open_panel': 'Open Panel',
+  'tray.start_walk': 'Start Walking',
+  'tray.stop_walk': 'Stop Walking',
+  'tray.quiet_mode': 'Quiet Mode',
+  'tray.about': 'About GraphPet',
+  'tray.quit': 'Quit',
+  'tray.about_detail': 'Your AI knowledge desktop pet\nFeed files, learn knowledge, chat with you\n\nMade with ❤️ by Jay Z',
+  'tray.about_btn': 'OK'
+}
+
+/** 主进程 i18n 翻译函数（按 settings.locale 选择字典） */
+function tMain(key: string): string {
+  const locale = readSettings().locale || 'zh'
+  const dict = locale === 'en' ? TRAY_I18N_EN : TRAY_I18N_ZH
+  return dict[key] ?? TRAY_I18N_ZH[key] ?? key
+}
+
 /** 构建系统托盘右键菜单（动态，依据当前走动/安静状态显示勾选） */
 function buildTrayMenu(): Electron.Menu {
   const isWalking = walkTimer !== null
   const settings = readSettings()
   return Menu.buildFromTemplate([
     {
-      label: '显示/隐藏宠物\tCtrl+Shift+G',
+      label: tMain('tray.show_hide'),
       click: () => {
         if (petWindow && !petWindow.isDestroyed()) {
           if (petWindow.isVisible() && !petWindow.isMinimized()) {
@@ -469,7 +588,7 @@ function buildTrayMenu(): Electron.Menu {
       }
     },
     {
-      label: '打开聊天窗口',
+      label: tMain('tray.open_chat'),
       click: () => {
         if (chatWindow && !chatWindow.isDestroyed()) {
           if (chatWindow.isMinimized()) chatWindow.restore()
@@ -481,7 +600,7 @@ function buildTrayMenu(): Electron.Menu {
       }
     },
     {
-      label: '打开管理面板',
+      label: tMain('tray.open_panel'),
       click: () => {
         if (webPanelWindow && !webPanelWindow.isDestroyed()) {
           webPanelWindow.focus()
@@ -492,7 +611,7 @@ function buildTrayMenu(): Electron.Menu {
     },
     { type: 'separator' },
     {
-      label: isWalking ? '停止走动' : '开始走动',
+      label: isWalking ? tMain('tray.stop_walk') : tMain('tray.start_walk'),
       click: () => {
         if (isWalking) {
           stopPetWalk()
@@ -504,7 +623,7 @@ function buildTrayMenu(): Electron.Menu {
       }
     },
     {
-      label: '安静模式',
+      label: tMain('tray.quiet_mode'),
       type: 'checkbox',
       checked: settings.quietMode,
       click: (menuItem) => {
@@ -524,20 +643,20 @@ function buildTrayMenu(): Electron.Menu {
     },
     { type: 'separator' },
     {
-      label: '关于 GraphPet',
+      label: tMain('tray.about'),
       click: () => {
         const version = app.getVersion()
         dialog.showMessageBox({
           type: 'info',
           title: 'GraphPet',
           message: `GraphPet v${version}`,
-          detail: '你的 AI 知识桌宠\n喂文件、学知识、陪你聊天\n\nMade with ❤️ by Jay Z',
-          buttons: ['好的']
+          detail: tMain('tray.about_detail'),
+          buttons: [tMain('tray.about_btn')]
         }).catch(() => { /* ignore */ })
       }
     },
     {
-      label: '退出',
+      label: tMain('tray.quit'),
       click: () => {
         app.quit()
       }
@@ -598,6 +717,8 @@ interface AppSettings {
   vadEnabled: boolean
   /** 主题模式：dark / light / auto（跟随系统） */
   theme: 'dark' | 'light' | 'auto'
+  /** UI 语言（i18n）：zh / en */
+  locale: 'zh' | 'en'
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -614,7 +735,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   ttsProvider: 'edge',
   ttsVoice: 'zh-CN-XiaoyiNeural',
   vadEnabled: false,
-  theme: 'dark'
+  theme: 'dark',
+  locale: 'zh'
 }
 
 /** 从 graphpet_state.json 读取设置，缺失则返回默认值 */
@@ -664,14 +786,103 @@ function registerIpcHandlers(): void {
   ipcMain.on('window:move', (event, x: number, y: number) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win && !win.isDestroyed()) {
+      // 物理动画进行中时拒绝手动移动（避免动画与拖拽冲突）
+      if (isPhysicsAnimating) return
       win.setPosition(Math.round(x), Math.round(y))
     }
+  })
+
+  // 立绘物理动画：渲染进程拖拽松手时传初速度 (vx, vy)，主进程做 RAF 物理 + 边缘反弹
+  // 参考 Shimeji-ee 的窗口物理：松手后惯性滑行，碰到屏幕边缘弹性反弹，速度阻尼衰减
+  ipcMain.on('window:apply-physics', (event, vx: number, vy: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    if (isPhysicsAnimating) return
+    // 速度阈值：太小的速度不启动动画（避免抖动）
+    const speed = Math.sqrt(vx * vx + vy * vy)
+    if (speed < 5) return
+
+    isPhysicsAnimating = true
+    // 保持非穿透，避免动画中鼠标穿透丢失事件
+    forceInteractive = true
+    setIgnoreMode(computeMouseMode())
+
+    let curVx = vx
+    let curVy = vy
+    const damping = 0.92  // 阻尼系数（每帧速度衰减）
+    const bounce = 0.7    // 弹性碰撞反弹系数
+    const minSpeed = 0.5  // 停止阈值
+    const intervalMs = 16 // ~60fps
+
+    if (physicsTimer) clearInterval(physicsTimer)
+    physicsTimer = setInterval(() => {
+      if (!win || win.isDestroyed()) {
+        if (physicsTimer) clearInterval(physicsTimer)
+        physicsTimer = null
+        isPhysicsAnimating = false
+        return
+      }
+      try {
+        const bounds = win.getBounds()
+        let newX = bounds.x + curVx
+        let newY = bounds.y + curVy
+
+        // 取当前所在显示器（窗口中心点所在 display）做边缘检测
+        const cx = newX + bounds.width / 2
+        const cy = newY + bounds.height / 2
+        const display = screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: bounds.width, height: bounds.height })
+        const wa = display.workArea
+
+        // X 方向边缘反弹
+        if (newX < wa.x) {
+          newX = wa.x
+          curVx = -curVx * bounce
+        } else if (newX + bounds.width > wa.x + wa.width) {
+          newX = wa.x + wa.width - bounds.width
+          curVx = -curVx * bounce
+        }
+
+        // Y 方向边缘反弹（顶部不反弹，让窗口贴顶；底部反弹强）
+        if (newY < wa.y) {
+          newY = wa.y
+          curVy = Math.abs(curVy) * bounce
+        } else if (newY + bounds.height > wa.y + wa.height) {
+          newY = wa.y + wa.height - bounds.height
+          curVy = -curVy * bounce
+        }
+
+        win.setPosition(Math.round(newX), Math.round(newY))
+
+        // 阻尼衰减
+        curVx *= damping
+        curVy *= damping
+
+        // 停止条件：速度小于阈值
+        const curSpeed = Math.sqrt(curVx * curVx + curVy * curVy)
+        if (curSpeed < minSpeed) {
+          if (physicsTimer) clearInterval(physicsTimer)
+          physicsTimer = null
+          isPhysicsAnimating = false
+          // 恢复穿透检测
+          forceInteractive = false
+          setIgnoreMode(computeMouseMode())
+        }
+      } catch {
+        if (physicsTimer) clearInterval(physicsTimer)
+        physicsTimer = null
+        isPhysicsAnimating = false
+        forceInteractive = false
+        setIgnoreMode(computeMouseMode())
+      }
+    }, intervalMs)
   })
 
   // 强制交互模式：浮层显示/拖拽期间关闭鼠标穿透
   ipcMain.on('window:force-interactive', (_event, state: string) => {
     const next = state === 'force-on'
     if (forceInteractive === next) return
+    // 立绘物理动画进行中时拒绝关闭穿透（避免拖拽 onDragEnd 100ms 后覆盖物理动画的 forceInteractive(true)）
+    if (!next && isPhysicsAnimating) return
     forceInteractive = next
     setIgnoreMode(computeMouseMode())
   })
@@ -1302,6 +1513,13 @@ function createPetWindow(): BrowserWindow {
   win.on('closed', () => {
     if (petWindow === win) petWindow = null
     stopMousePolling()
+    // P2 修复：清理立绘物理动画定时器，避免窗口销毁后 setInterval 继续跑
+    if (physicsTimer) {
+      clearInterval(physicsTimer)
+      physicsTimer = null
+      isPhysicsAnimating = false
+      forceInteractive = false
+    }
   })
 
   win.once('ready-to-show', () => {
@@ -1617,6 +1835,12 @@ app.on('will-quit', () => {
   }
   stopMousePolling()
   stopFullscreenDetection()
+  // 清理立绘物理动画定时器，避免进程退出时 setInterval 泄漏
+  if (physicsTimer) {
+    clearInterval(physicsTimer)
+    physicsTimer = null
+    isPhysicsAnimating = false
+  }
 })
 
 app.on('activate', () => {

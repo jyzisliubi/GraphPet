@@ -6,6 +6,7 @@ import Timeline from './Timeline'
 import FileList from './FileList'
 import Profile from './Profile'
 import NitoIcon from '../components/NitoIcon'
+import { useT } from '../i18n'
 
 /** 面板路由 key */
 type PanelRoute = 'chat' | 'memory' | 'timeline' | 'files' | 'profile'
@@ -13,16 +14,16 @@ type PanelRoute = 'chat' | 'memory' | 'timeline' | 'files' | 'profile'
 interface NavItem {
   key: PanelRoute
   icon: string
-  label: string
-  desc: string
+  labelKey: string
+  descKey: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'chat', icon: '💬', label: '深度聊天', desc: '完整对话与引用溯源' },
-  { key: 'memory', icon: '🕸️', label: '记忆图谱', desc: '知识三元组可视化' },
-  { key: 'timeline', icon: '📅', label: '时间线', desc: '喂食与互动历史' },
-  { key: 'files', icon: '📁', label: '文件清单', desc: '已吃文件管理' },
-  { key: 'profile', icon: '📊', label: '智力展示', desc: '成长状态总览' }
+  { key: 'chat', icon: '💬', labelKey: 'panel.nav.chat', descKey: 'panel.nav.chat_desc' },
+  { key: 'memory', icon: '🕸️', labelKey: 'panel.nav.memory', descKey: 'panel.nav.memory_desc' },
+  { key: 'timeline', icon: '📅', labelKey: 'panel.nav.timeline', descKey: 'panel.nav.timeline_desc' },
+  { key: 'files', icon: '📁', labelKey: 'panel.nav.files', descKey: 'panel.nav.files_desc' },
+  { key: 'profile', icon: '📊', labelKey: 'panel.nav.profile', descKey: 'panel.nav.profile_desc' }
 ]
 
 /** 全局暗色主题样式（Linear/Stripe 风格） */
@@ -268,6 +269,7 @@ function navigate(route: PanelRoute): void {
 }
 
 export default function PanelApp(): JSX.Element {
+  const t = useT()
   const [route, setRoute] = useState<PanelRoute>(parseHash)
 
   useEffect(() => {
@@ -310,7 +312,7 @@ export default function PanelApp(): JSX.Element {
           <span className="gp-panel-brand-icon"><NitoIcon size={36} /></span>
           <div>
             <div className="gp-panel-brand-text">GraphPet</div>
-            <div className="gp-panel-brand-sub">知识图谱桌宠</div>
+            <div className="gp-panel-brand-sub">{t('panel.brand_sub')}</div>
           </div>
         </div>
         <nav className="gp-panel-nav">
@@ -323,15 +325,15 @@ export default function PanelApp(): JSX.Element {
             >
               <span className="gp-panel-nav-icon">{item.icon}</span>
               <span className="gp-panel-nav-text">
-                <div className="gp-panel-nav-label">{item.label}</div>
-                <div className="gp-panel-nav-desc">{item.desc}</div>
+                <div className="gp-panel-nav-label">{t(item.labelKey)}</div>
+                <div className="gp-panel-nav-desc">{t(item.descKey)}</div>
               </span>
             </button>
           ))}
         </nav>
         <div className="gp-panel-sidebar-footer">
           <span className="gp-panel-status-dot" />
-          v0.2.5 · 在线
+          v0.2.5 · {t('panel.online')}
         </div>
       </div>
       <div className="gp-panel-main">

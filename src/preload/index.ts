@@ -18,12 +18,16 @@ export interface AppSettings {
   petScale: number
   /** TTS 语音播报开关 */
   ttsEnabled: boolean
-  /** TTS 语音角色（edge-tts ShortName） */
+  /** TTS provider：edge（在线免费）/ piper（本地离线） */
+  ttsProvider: 'edge' | 'piper'
+  /** TTS 语音角色（edge-tts ShortName；piper: 模型名） */
   ttsVoice: string
   /** VAD 语音打断开关 */
   vadEnabled: boolean
   /** 主题模式 */
   theme: 'dark' | 'light' | 'auto'
+  /** UI 语言（i18n）：zh / en */
+  locale: 'zh' | 'en'
 }
 
 // IPC 通道名常量（与主进程保持一致）
@@ -60,6 +64,10 @@ const api = {
   // 移动窗口到指定坐标（屏幕坐标）
   windowMove: (x: number, y: number): void => {
     ipcRenderer.send(IPC_CHANNELS.WINDOW_MOVE, x, y)
+  },
+  // 立绘物理动画：拖拽松手时传初速度 (vx, vy)，主进程做惯性滑行 + 边缘反弹
+  applyPhysics: (vx: number, vy: number): void => {
+    ipcRenderer.send('window:apply-physics', vx, vy)
   },
   // 通知主进程强制交互模式（浮层显示/拖拽时），主进程鼠标轮询会关闭穿透
   forceInteractive: (active: boolean): void => {

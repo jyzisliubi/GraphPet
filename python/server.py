@@ -2002,7 +2002,7 @@ async def text_to_speech(req: TTSRequest):
 
         if provider == "piper":
             # Piper 本地离线 TTS（隐私友好，无网络依赖）
-            return _tts_piper(req.text, req.voice)
+            return await _tts_piper(req.text, req.voice)
 
         # 默认 edge-tts
         import edge_tts
@@ -2026,15 +2026,16 @@ async def text_to_speech(req: TTSRequest):
         )
 
 
-def _tts_piper(text: str, voice: str):
-    """Piper 本地离线 TTS。
+async def _tts_piper(text: str, voice: str):
+    """Piper 本地离线 TTS（异步，模型下载/推理在线程池跑避免阻塞 event loop）。
 
     voice 参数是 piper 模型名（如 zh_CN-huayan-medium）。
     模型缓存目录：app_data/piper_models/。
     首次使用会下载模型（约 60MB），后续直接复用。
 
-    Piper 是 python -m piper_cli 的封装，输出 WAV 格式。
+    返回 StreamingResponse(audio/wav) 或 JSONResponse(错误)。
     """
+    import asyncio
     import io
     import os
     import urllib.request
@@ -2049,7 +2050,7 @@ def _tts_piper(text: str, voice: str):
     model_path = os.path.join(piper_models_dir, f"{model_name}.onnx")
     model_config_path = os.path.join(piper_models_dir, f"{model_name}.onnx.json")
 
-    # 首次使用下载模型（huggingface.co 源）
+    # 首次使用下载模型（huggingface.co 源，带超时保护避免慢速网络无限阻塞）
     if not os.path.exists(model_path):
         try:
             # Piper 模型 URL（rhasspy/piper-voices 仓库）
@@ -2057,8 +2058,16 @@ def _tts_piper(text: str, voice: str):
             voice_lower = model_name.lower()
             model_url = f"{base_url}/{voice_lower}/{model_name}.onnx"
             config_url = f"{base_url}/{voice_lower}/{model_name}.onnx.json"
-            urllib.request.urlretrieve(model_url, model_path)
-            urllib.request.urlretrieve(config_url, model_config_path)
+            # P1 修复：urlretrieve 无超时，慢速网络会无限阻塞。改用 urlopen + timeout + 手动写入
+            def _download(url: str, dest: str) -> None:
+                with urllib.request.urlopen(url, timeout=60) as resp, open(dest, "wb") as f:
+                    while True:
+                        chunk = resp.read(64 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+            await asyncio.to_thread(_download, model_url, model_path)
+            await asyncio.to_thread(_download, config_url, model_config_path)
         except Exception as e:
             return JSONResponse(
                 status_code=500,
@@ -2080,14 +2089,19 @@ def _tts_piper(text: str, voice: str):
             except ImportError:
                 return None
 
-        # 在 feed_executor 中跑（避免占用 chat worker）
-        audio_bytes = await asyncio.to_thread(_synth)
+        # 在 feed_executor 中跑（避免占用 chat worker），30s 超时保护
+        audio_bytes = await asyncio.wait_for(asyncio.to_thread(_synth), timeout=30)
         if audio_bytes is None:
             return JSONResponse(
                 status_code=500,
                 content={"success": False, "error": "piper-tts 未安装，请运行 pip install piper-tts"}
             )
         return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/wav")
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Piper TTS 推理超时（30s），请检查模型或 CPU 负载"}
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500,

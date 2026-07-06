@@ -7,6 +7,7 @@ import {
   useRef
 } from 'react'
 import type { ReactNode, Dispatch } from 'react'
+import { setLocale as i18nSetLocale } from '../i18n'
 
 // 设置状态管理（Task 9）
 //
@@ -61,6 +62,8 @@ export interface AppSettings {
   // —— 外观配置 ——
   /** 主题模式：dark / light / auto（跟随系统） */
   theme: 'dark' | 'light' | 'auto'
+  /** UI 语言（i18n）：zh / en */
+  locale: 'zh' | 'en'
 }
 
 /** 默认设置（与主进程 main/index.ts 中的 DEFAULT_SETTINGS 保持一致） */
@@ -78,7 +81,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ttsProvider: 'edge',
   ttsVoice: 'zh-CN-XiaoyiNeural',
   vadEnabled: false,
-  theme: 'dark'
+  theme: 'dark',
+  locale: 'zh'
 }
 
 /** Reducer Action 类型 */
@@ -181,6 +185,15 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
     const t = settings.theme || 'dark'
     document.documentElement.setAttribute('data-theme', t)
   }, [settings.theme])
+
+  // i18n locale 同步：settings.locale 变化时（含跨窗口广播）同步到 i18n 模块
+  // 修复 P1 bug：SettingsPanel 改 locale 后广播到其他窗口，但其他窗口的 i18n 模块 currentLocale 不更新
+  useEffect(() => {
+    const locale = settings.locale
+    if (locale === 'zh' || locale === 'en') {
+      i18nSetLocale(locale)
+    }
+  }, [settings.locale])
 
   const value: SettingsContextValue = {
     settings,

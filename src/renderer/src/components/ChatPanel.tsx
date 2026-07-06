@@ -10,6 +10,7 @@ import { startListening, stopListening, isSTTSupported, getIsListening } from '.
 import { useVAD } from '../hooks/useVAD'
 import { useChatStore, type ChatMessage as StoreChatMessage, type Conversation } from '../stores/chatStore'
 import { useSettings } from '../stores/settingsStore'
+import { useT } from '../i18n'
 import NitoIcon from './NitoIcon'
 
 export interface ChatPanelProps {
@@ -919,7 +920,7 @@ function renderAnswerContent(
             onCiteClick(seg.id)
           }}
           role={hasSource ? 'button' : undefined}
-          title={hasSource ? `查看来源 ${seg.id}` : undefined}
+          title={hasSource ? t('chat.show_sources') + ' ' + seg.id : undefined}
         >
           [{seg.id}]
         </span>
@@ -950,6 +951,7 @@ function MessageItem({
   ttsProvider?: 'edge' | 'piper'
   embedded?: boolean
 }): JSX.Element {
+  const t = useT()
   const [sourcesExpanded, setSourcesExpanded] = useState<boolean>(false)
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
 
@@ -1028,7 +1030,7 @@ function MessageItem({
               }}
               role="button"
             >
-              {sourcesExpanded ? '▾ 收起来源' : '▸ 查看来源'}
+              {sourcesExpanded ? t('chat.hide_sources') : t('chat.show_sources')}
               <span style={{ marginLeft: 2 }}>({message.sources!.length})</span>
             </span>
             {sourcesExpanded && (
@@ -1051,7 +1053,7 @@ function MessageItem({
                     )}
                     {src.text}
                     <span className="graphpet-chat-source-score">
-                      相关度 {Math.round(src.score * 100)}%
+                      {t('chat.source_relevance', { percent: Math.round(src.score * 100) })}
                     </span>
                   </div>
                 ))}
@@ -1067,7 +1069,7 @@ function MessageItem({
               e.stopPropagation()
               handleSpeakClick()
             }}
-            title={isPlaying ? '停止朗读' : '朗读这条回答'}
+            title={isPlaying ? t('chat.stop_speaking') : t('chat.speak_tooltip')}
             style={{
               marginTop: 6,
               padding: '2px 8px',
@@ -1081,7 +1083,7 @@ function MessageItem({
               transition: 'all 0.15s ease'
             }}
           >
-            {isPlaying ? '⏹ 停止' : '🔊 朗读'}
+            {isPlaying ? t('chat.stop') : t('chat.read')}
           </button>
         )}
       </div>
@@ -1089,20 +1091,21 @@ function MessageItem({
   )
 }
 
-const QUICK_QUESTIONS = ['你好呀！', '你能做什么？', '讲个冷知识', '今天心情如何？']
+const QUICK_QUESTION_KEYS = ['chat.quick_q1', 'chat.quick_q2', 'chat.quick_q3', 'chat.quick_q4'] as const
 
 function generateMsgId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-function formatTime(timestamp: number): string {
+function formatTime(timestamp: number, locale: 'zh' | 'en' = 'zh'): string {
   const date = new Date(timestamp)
   const now = new Date()
   const isToday = date.toDateString() === now.toDateString()
+  const bcp47 = locale === 'en' ? 'en-US' : 'zh-CN'
   if (isToday) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString(bcp47, { hour: '2-digit', minute: '2-digit' })
   }
-  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(bcp47, { month: 'short', day: 'numeric' })
 }
 
 export default function ChatPanel({
@@ -1125,9 +1128,13 @@ export default function ChatPanel({
     updateMessage
   } = useChatStore()
   const { settings } = useSettings()
+  const t = useT()
   // 用 ref 持有 settings，避免 settings 变化时 handleSend 重建（保持原依赖列表稳定）
   const settingsRef = useRef(settings)
   settingsRef.current = settings
+  // 用 ref 持有 t 函数，避免在 handleSend 闭包中捕获旧 t（locale 切换时立即生效）
+  const tRef = useRef(t)
+  tRef.current = t
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true)
   const [loading, setLoading] = useState<boolean>(false)
@@ -1403,7 +1410,7 @@ export default function ChatPanel({
         if (activeConversationIdRef.current !== convId) {
           // 用户切到其他对话，收尾当前 pendingMsg 避免永久 isStreaming: true
           updateMessage(convId, assistantMsgId, {
-            content: accumulatedContent || '（已切换对话，回答中断）',
+            content: accumulatedContent || tRef.current('chat.switched_interrupt'),
             isStreaming: false,
             isError: false
           })
@@ -1436,7 +1443,10 @@ export default function ChatPanel({
             if (event.sources && event.sources.length > 0) {
               finalSources = event.sources
             }
-            finalSuccess = true
+            // P2 修复：仅在未收到 error 事件时才标记成功，避免先 error 后 done 覆盖错误状态
+            if (finalSuccess !== false) {
+              finalSuccess = true
+            }
             // 驱动 Live2D 表情
             if (event.emotion) {
               try { onEmotionChange?.(event.emotion) } catch { /* ignore */ }
@@ -1448,7 +1458,7 @@ export default function ChatPanel({
       if (activeConversationIdRef.current === convId) {
         if (finalSuccess && accumulatedContent) {
           updateMessage(convId, assistantMsgId, {
-            content: accumulatedContent || (finalSuccess ? '' : finalMessage || '回答失败'),
+            content: accumulatedContent || (finalSuccess ? '' : finalMessage || tRef.current('chat.failed')),
             sources: finalSources.length > 0 ? finalSources : undefined,
             isError: !finalSuccess,
             isStreaming: false
@@ -1460,11 +1470,11 @@ export default function ChatPanel({
           }
         } else if (!finalSuccess) {
           updateMessage(convId, assistantMsgId, {
-            content: finalMessage || '回答失败',
+            content: finalMessage || tRef.current('chat.failed'),
             isError: true,
             isStreaming: false
           })
-          setError(finalMessage || '回答失败')
+          setError(finalMessage || tRef.current('chat.failed'))
           playErrorSound()
         } else {
           updateMessage(convId, assistantMsgId, {
@@ -1477,8 +1487,8 @@ export default function ChatPanel({
       if (activeConversationIdRef.current === convId) {
         // 保留已累积的部分回答，附加网络中断提示，避免用户丢失 LLM 已说一半的内容
         const partialContent = accumulatedContent
-          ? `${accumulatedContent}\n\n---\n\n⚠️ 网络中断：${errMsg}`
-          : `出错了：${errMsg}`
+          ? `${accumulatedContent}\n\n---\n\n${tRef.current('chat.network_interrupt', { msg: errMsg })}`
+          : tRef.current('chat.error_prefix', { msg: errMsg })
         updateMessage(convId, assistantMsgId, {
           content: partialContent,
           isError: true,
@@ -1511,7 +1521,8 @@ export default function ChatPanel({
       return
     }
     setIsListeningSTT(true)
-    startListening('zh-CN', {
+    // STT 语言跟随 locale（英文 locale 用英文识别，否则中文）
+    startListening(settings.locale === 'en' ? 'en-US' : 'zh-CN', {
       onInterim: (text) => {
         // P1-E 修复：中间结果用 \u200B 标记，下次 onInterim/onFinal 通过正则替换掉
         // （原代码注释声称用 \u200B 标记但从未插入，导致中间结果无限累积）
@@ -1531,7 +1542,7 @@ export default function ChatPanel({
       },
       onError: (err) => {
         setIsListeningSTT(false)
-        setError(`语音识别失败：${err}`)
+        setError(tRef.current('chat.error_prefix', { msg: err }))
       },
       onEnd: () => {
         setIsListeningSTT(false)
@@ -1564,7 +1575,7 @@ export default function ChatPanel({
 
   const handleDeleteConversation = (e: React.MouseEvent, id: string): void => {
     e.stopPropagation()
-    if (window.confirm('确定要删除这个对话吗？')) {
+    if (window.confirm(t('chat.confirm_delete'))) {
       deleteConversation(id)
     }
   }
@@ -1591,9 +1602,9 @@ export default function ChatPanel({
       // P1-C 修复：基于 onFeedFile 返回值决定 toast 文案（原代码无论成败都显示"已喂给Nito"）
       try {
         const ok = await Promise.resolve(onFeedFile(filePath))
-        showFeedToast(ok === false ? `喂食失败：${file.name}` : `已喂给Nito：${file.name}`)
+        showFeedToast(ok === false ? t('chat.feed_failed', { name: file.name }) : t('chat.feed_success', { name: file.name }))
       } catch (err) {
-        showFeedToast(`喂食失败：${err instanceof Error ? err.message : String(err)}`)
+        showFeedToast(t('chat.feed_failed_reason', { reason: err instanceof Error ? err.message : String(err) }))
       }
     }
     e.target.value = ''
@@ -1622,9 +1633,9 @@ export default function ChatPanel({
       if (filePath) {
         // P1-C 修复：基于返回值决定 toast 文案
         void Promise.resolve(onFeedFile(filePath)).then((ok) => {
-          showFeedToast(ok === false ? `喂食失败：${file.name}` : `已喂给Nito：${file.name}`)
+          showFeedToast(ok === false ? t('chat.feed_failed', { name: file.name }) : t('chat.feed_success', { name: file.name }))
         }).catch((err) => {
-          showFeedToast(`喂食失败：${err instanceof Error ? err.message : String(err)}`)
+          showFeedToast(t('chat.feed_failed_reason', { reason: err instanceof Error ? err.message : String(err) }))
         })
       }
     }
@@ -1636,9 +1647,9 @@ export default function ChatPanel({
 
   const getConvPreview = (conv: Conversation): string => {
     const lastMsg = conv.messages[conv.messages.length - 1]
-    if (!lastMsg) return formatTime(conv.updatedAt)
+    if (!lastMsg) return formatTime(conv.updatedAt, settings.locale)
     const preview = lastMsg.content.slice(0, 20)
-    return preview || formatTime(lastMsg.timestamp)
+    return preview || formatTime(lastMsg.timestamp, settings.locale)
   }
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading])
@@ -1658,7 +1669,7 @@ export default function ChatPanel({
       style={panelStyle}
       role="dialog"
       aria-modal={embedded}
-      aria-label="和 Nito 聊天"
+      aria-label={t('chat.title_default')}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1667,7 +1678,7 @@ export default function ChatPanel({
         <div className="gp-drop-overlay">
           <div className="gp-drop-overlay-inner">
             <div className="gp-drop-overlay-icon"><NitoIcon size={80} /></div>
-            <div className="gp-drop-overlay-text">松开喂给 Nito</div>
+            <div className="gp-drop-overlay-text">{t('chat.drop_to_feed')}</div>
           </div>
         </div>
       )}
@@ -1685,15 +1696,15 @@ export default function ChatPanel({
             type="button"
             className="graphpet-chat-new-btn"
             onClick={handleNewChat}
-            title="新建对话"
+            title={t('chat.new_conversation')}
           >
-            <Plus size={16} /> 新建对话
+            <Plus size={16} /> {t('chat.new_conversation')}
           </button>
           <button
             type="button"
             className="graphpet-chat-collapse-btn"
             onClick={toggleSidebar}
-            title="收起侧边栏"
+            title={t('chat.collapse_sidebar')}
           >
             <ChevronLeft size={18} />
           </button>
@@ -1713,7 +1724,7 @@ export default function ChatPanel({
                 type="button"
                 className="graphpet-chat-conv-delete"
                 onClick={(e) => handleDeleteConversation(e, conv.id)}
-                title="删除对话"
+                title={t('chat.delete_conversation')}
               >
                 <Trash2 size={14} />
               </button>
@@ -1728,7 +1739,7 @@ export default function ChatPanel({
             type="button"
             className="graphpet-chat-expand-btn"
             onClick={toggleSidebar}
-            title="展开对话历史"
+            title={t('chat.expand_history')}
           >
             <ChevronRight size={18} />
           </button>
@@ -1737,14 +1748,14 @@ export default function ChatPanel({
         <div className="graphpet-chat-header" onMouseDown={handleHeaderMouseDown}>
           <div className="graphpet-chat-title">
             <span className="graphpet-chat-title-icon"><MessageCircle size={18} /></span>
-            <span>{activeConversation?.title || '和 Nito 聊天'}</span>
+            <span>{activeConversation?.title || t('chat.title_default')}</span>
           </div>
           <div className="graphpet-chat-header-actions">
             <button
               type="button"
               className="graphpet-chat-icon-btn"
               onClick={toggleSidebar}
-              title={sidebarCollapsed ? '展开对话历史' : '收起对话历史'}
+              title={sidebarCollapsed ? t('chat.expand_history') : t('chat.collapse_history')}
             >
               <PanelLeft size={16} />
             </button>
@@ -1754,24 +1765,24 @@ export default function ChatPanel({
                   type="button"
                   className="graphpet-chat-tool-btn"
                   onClick={handleUploadClick}
-                  title="上传文件喂给Nito"
+                  title={t('chat.upload_tooltip')}
                 >
-                  <Paperclip size={14} /> 喂文件
+                  <Paperclip size={14} /> {t('chat.feed_file')}
                 </button>
                 <button
                   type="button"
                   className="graphpet-chat-tool-btn"
                   onClick={handleNewChat}
-                  title="开始新对话"
+                  title={t('chat.start_new_chat')}
                 >
-                  <Plus size={14} /> 新对话
+                  <Plus size={14} /> {t('chat.new_chat')}
                 </button>
                 <button
                   type="button"
                   className="graphpet-chat-icon-btn"
                   onClick={() => window.api.minimizeChat()}
-                  aria-label="最小化"
-                  title="最小化"
+                  aria-label={t('chat.minimize')}
+                  title={t('chat.minimize')}
                 >
                   <Minus size={14} />
                 </button>
@@ -1779,8 +1790,8 @@ export default function ChatPanel({
                   type="button"
                   className="graphpet-chat-icon-btn graphpet-chat-icon-btn--close"
                   onClick={onClose}
-                  aria-label="关闭"
-                  title="关闭"
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                 >
                   <X size={14} />
                 </button>
@@ -1791,8 +1802,8 @@ export default function ChatPanel({
                   type="button"
                   className="graphpet-chat-icon-btn"
                   onClick={handleUploadClick}
-                  aria-label="上传文件喂食"
-                  title="上传文件喂给Nito"
+                  aria-label={t('chat.feed_file')}
+                  title={t('chat.upload_tooltip')}
                 >
                   <Paperclip size={16} />
                 </button>
@@ -1800,8 +1811,8 @@ export default function ChatPanel({
                   type="button"
                   className="graphpet-chat-icon-btn"
                   onClick={handleNewChat}
-                  aria-label="新建对话"
-                  title="新建对话"
+                  aria-label={t('chat.new_conversation')}
+                  title={t('chat.new_conversation')}
                 >
                   <Plus size={16} />
                 </button>
@@ -1809,8 +1820,8 @@ export default function ChatPanel({
                   type="button"
                   className="graphpet-chat-icon-btn graphpet-chat-icon-btn--close"
                   onClick={onClose}
-                  aria-label="关闭"
-                  title="关闭"
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                 >
                   <X size={16} />
                 </button>
@@ -1826,23 +1837,26 @@ export default function ChatPanel({
           {messages.length === 0 ? (
             <div className="graphpet-chat-empty">
               <span className="graphpet-chat-empty-emoji"><NitoIcon size={64} /></span>
-              嗨～我是 Nito，你的知识小宠物！
+              {t('chat.empty_title')}
               <br />
               <span className="graphpet-chat-empty-subtitle">
-                {embedded ? '和我聊聊天，或者喂我吃点文件吧~' : '有什么想问我的吗？'}
+                {embedded ? t('chat.empty_embedded') : t('chat.empty_default')}
               </span>
               {embedded && (
                 <div className="graphpet-chat-quick-actions">
-                  {QUICK_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      className="graphpet-chat-quick-btn"
-                      onClick={() => handleQuickQuestion(q)}
-                    >
-                      {q}
-                    </button>
-                  ))}
+                  {QUICK_QUESTION_KEYS.map((key) => {
+                    const q = t(key)
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className="graphpet-chat-quick-btn"
+                        onClick={() => handleQuickQuestion(q)}
+                      >
+                        {q}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1866,7 +1880,7 @@ export default function ChatPanel({
             ref={inputRef}
             className="graphpet-chat-input"
             value={input}
-            placeholder={isListeningSTT ? '正在聆听... 说话即可输入' : '输入问题，Enter 发送，Shift+Enter 换行'}
+            placeholder={isListeningSTT ? t('chat.listening') : t('chat.placeholder')}
             rows={1}
             disabled={loading}
             spellCheck={false}
@@ -1878,7 +1892,7 @@ export default function ChatPanel({
               type="button"
               className={`graphpet-chat-mic${isListeningSTT ? ' graphpet-chat-mic--listening' : ''}`}
               onClick={toggleSTT}
-              title={isListeningSTT ? '停止语音输入' : '语音输入'}
+              title={isListeningSTT ? t('chat.stop_voice_input') : t('chat.voice_input')}
               disabled={loading}
               style={{
                 padding: '6px 10px',
@@ -1903,7 +1917,7 @@ export default function ChatPanel({
             onClick={() => void handleSend()}
             disabled={!canSend}
           >
-            {loading ? '思考中...' : <><Send size={14} /> 发送</>}
+            {loading ? t('chat.thinking_dots') : <><Send size={14} /> {t('common.send')}</>}
           </button>
         </div>
       </div>
